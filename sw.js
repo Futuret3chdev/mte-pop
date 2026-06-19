@@ -1,4 +1,4 @@
-const CACHE = 'mte-pop-v2';
+const CACHE = 'mte-pop-v3';
 const ASSETS = [
   '/',
   '/index.html',
