@@ -22,46 +22,98 @@ const Game = (() => {
   let board = null;
   let currentLevel = 1;
   let placementMode = null;
-  let progress = loadProgress();
+  let progress = AuthManager.loadProgress();
 
   const $ = id => document.getElementById(id);
   const screens = {
     menu: $('menu-screen'),
     level: $('level-screen'),
     game: $('game-screen'),
-    shop: $('shop-screen')
+    shop: $('shop-screen'),
+    profile: $('profile-screen')
   };
 
   const boardEl = $('board');
   const particlesCanvas = $('particles');
 
-  function loadProgress() {
-    const defaults = {
-      maxLevel: 1,
-      stars: {},
-      totalStars: 0,
-      coins: 500,
-      inventory: { bomb: 0, rocket_h: 0, disco: 0, extra_moves: 0 }
-    };
-    try {
-      const raw = localStorage.getItem('mtepop_progress') || localStorage.getItem('toonblast_progress');
-      const saved = raw ? JSON.parse(raw) : {};
-      return {
-        ...defaults,
-        ...saved,
-        stars: { ...defaults.stars, ...(saved.stars || {}) },
-        inventory: { ...defaults.inventory, ...(saved.inventory || {}) },
-        coins: typeof saved.coins === 'number' ? saved.coins : defaults.coins,
-        maxLevel: saved.maxLevel || defaults.maxLevel,
-        totalStars: saved.totalStars || defaults.totalStars
-      };
-    } catch {
-      return defaults;
-    }
+  function reloadProgress() {
+    progress = AuthManager.loadProgress();
+    updateMenuStats();
+    updateAuthUI();
   }
 
   function saveProgress() {
-    localStorage.setItem('mtepop_progress', JSON.stringify(progress));
+    if (!AuthManager.isLoggedIn()) return;
+    AuthManager.saveProgress(progress);
+  }
+
+  function showToast(msg) {
+    const t = $('toast');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.remove('hidden');
+    setTimeout(() => t.classList.add('hidden'), 2800);
+  }
+
+  function updateAuthUI() {
+    const loggedIn = AuthManager.isLoggedIn();
+    const user = AuthManager.getUser();
+    const prof = AuthManager.getProfile();
+
+    $('guest-banner')?.classList.toggle('hidden', loggedIn);
+    $('logout-btn')?.classList.toggle('hidden', !loggedIn);
+
+
+    const providerLabels = { google: 'Google', facebook: 'Facebook', x: 'X' };
+    if ($('profile-name')) $('profile-name').textContent = prof.name;
+    if ($('profile-avatar')) $('profile-avatar').textContent = prof.avatar;
+    if ($('profile-avatar-mini')) $('profile-avatar-mini').textContent = prof.avatar;
+    if ($('profile-frame')) $('profile-frame').style.setProperty('--frame-color', prof.frame);
+    if ($('profile-provider')) {
+      $('profile-provider').textContent = loggedIn
+        ? `Signed in via ${providerLabels[user?.provider] || user?.provider}`
+        : 'Guest — progress not saved';
+    }
+    if ($('profile-name-input')) $('profile-name-input').value = prof.name;
+
+    $('next-level-btn')?.classList.toggle('hidden', !loggedIn);
+    $('win-guest-hint')?.classList.toggle('hidden', loggedIn);
+  }
+
+  function renderProfilePickers() {
+    const avatars = $('avatar-picker');
+    const frames = $('frame-picker');
+    if (!avatars || !frames) return;
+    avatars.innerHTML = '';
+    frames.innerHTML = '';
+    const prof = AuthManager.getProfile();
+
+    AuthManager.AVATARS.forEach(emoji => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `avatar-opt${prof.avatar === emoji ? ' active' : ''}`;
+      btn.textContent = emoji;
+      btn.addEventListener('click', () => {
+        avatars.querySelectorAll('.avatar-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        $('profile-avatar').textContent = emoji;
+        $('profile-avatar-mini').textContent = emoji;
+      });
+      avatars.appendChild(btn);
+    });
+
+    AuthManager.FRAMES.forEach(color => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `frame-opt${prof.frame === color ? ' active' : ''}`;
+      btn.style.background = color;
+      btn.addEventListener('click', () => {
+        frames.querySelectorAll('.frame-opt').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        $('profile-frame').style.setProperty('--frame-color', color);
+      });
+      frames.appendChild(btn);
+    });
   }
 
   function showScreen(name) {
@@ -80,9 +132,10 @@ const Game = (() => {
   }
 
   function updateMenuStats() {
-    if ($('menu-level')) $('menu-level').textContent = progress.maxLevel;
-    if ($('max-level')) $('max-level').textContent = progress.maxLevel;
-    if ($('total-stars')) $('total-stars').textContent = progress.totalStars;
+    const playLevel = AuthManager.getPlayLevel(progress);
+    if ($('menu-level')) $('menu-level').textContent = playLevel;
+    if ($('max-level')) $('max-level').textContent = AuthManager.isLoggedIn() ? progress.maxLevel : 1;
+    if ($('total-stars')) $('total-stars').textContent = AuthManager.isLoggedIn() ? progress.totalStars : 0;
     if ($('menu-coins')) $('menu-coins').textContent = progress.coins;
     if ($('shop-coins')) $('shop-coins').textContent = progress.coins;
     updateInventoryHUD();
@@ -134,6 +187,10 @@ const Game = (() => {
   }
 
   function buyItem(item) {
+    if (!AuthManager.isLoggedIn()) {
+      showToast('Sign in to buy items!');
+      return;
+    }
     if (progress.coins < item.price) return;
     const invKey = item.type === 'rocket_h' ? 'rocket_h' : item.id === 'extra_moves' ? 'extra_moves' : item.type;
     progress.coins -= item.price;
@@ -182,9 +239,9 @@ const Game = (() => {
       const num = i + 1;
       const data = STATION_DATA[i] || STATION_DATA[0];
       const side = i % 2 === 0 ? 'left' : 'right';
-      const unlocked = num <= progress.maxLevel;
+      const unlocked = AuthManager.isLoggedIn() ? num <= progress.maxLevel : num === 1;
       const stars = progress.stars[num] || 0;
-      const isCurrent = num === progress.maxLevel;
+      const isCurrent = AuthManager.isLoggedIn() && num === progress.maxLevel;
 
       if (i > 0) {
         const rail = document.createElement('div');
@@ -553,23 +610,27 @@ const Game = (() => {
     onWin(score, movesLeft) {
       AudioEngine.win();
       const stars = calcStars(movesLeft);
-      const prev = progress.stars[board.levelNumber] || 0;
-      if (stars > prev) {
-        progress.totalStars += stars - prev;
-        progress.stars[board.levelNumber] = stars;
+      if (AuthManager.isLoggedIn()) {
+        const prev = progress.stars[board.levelNumber] || 0;
+        if (stars > prev) {
+          progress.totalStars += stars - prev;
+          progress.stars[board.levelNumber] = stars;
+        }
+        if (board.levelNumber >= progress.maxLevel && board.levelNumber < LEVELS.length) {
+          progress.maxLevel = board.levelNumber + 1;
+        }
+        const coinReward = 50 + stars * 25 + movesLeft * 5;
+        progress.coins += coinReward;
+        saveProgress();
+        $('win-coins').textContent = `+${coinReward} 🪙`;
+      } else {
+        $('win-coins').textContent = 'Sign in to earn coins!';
       }
-      if (board.levelNumber >= progress.maxLevel && board.levelNumber < LEVELS.length) {
-        progress.maxLevel = board.levelNumber + 1;
-      }
-
-      const coinReward = 50 + stars * 25 + movesLeft * 5;
-      progress.coins += coinReward;
-      saveProgress();
       updateMenuStats();
 
       $('win-score').textContent = score;
-      $('win-coins').textContent = `+${coinReward} 🪙`;
       $('win-stars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+      updateAuthUI();
       $('win-modal').classList.remove('hidden');
     },
 
@@ -622,22 +683,42 @@ const Game = (() => {
 
   function updateMuteButton() {
     const btn = $('mute-btn');
-    if (!btn) return;
-    btn.textContent = AudioEngine.isEnabled() ? '🔊' : '🔇';
-    btn.classList.toggle('muted', !AudioEngine.isEnabled());
+    if (btn) {
+      btn.textContent = AudioEngine.isEnabled() ? '🔊' : '🔇';
+      btn.classList.toggle('muted', !AudioEngine.isEnabled());
+    }
+    const musicBtn = $('music-btn');
+    if (musicBtn) {
+      musicBtn.textContent = AudioEngine.isMusicEnabled() ? '🎵' : '🎵';
+      musicBtn.classList.toggle('muted', !AudioEngine.isMusicEnabled());
+    }
   }
 
   function init() {
+    AuthManager.init();
+    PWA.init();
+    reloadProgress();
     ParticleSystem.init(particlesCanvas);
-    updateMenuStats();
     updateMuteButton();
     renderShop();
+    renderProfilePickers();
+    updateAuthUI();
+
+    if (AudioEngine.isMusicEnabled()) {
+      AudioEngine.init();
+      AudioEngine.startMusic();
+    }
+
+    document.addEventListener('mtepop:authchange', () => {
+      reloadProgress();
+      renderProfilePickers();
+    });
 
     $('play-btn')?.addEventListener('click', () => {
       AudioEngine.init();
-      AudioEngine.setEnabled(true);
+      if (!AudioEngine.isMusicEnabled()) AudioEngine.setMusicEnabled(true);
       updateMuteButton();
-      startLevel(progress.maxLevel);
+      startLevel(AuthManager.getPlayLevel(progress));
     });
 
     $('level-select-btn')?.addEventListener('click', () => {
@@ -660,9 +741,73 @@ const Game = (() => {
 
     $('mute-btn')?.addEventListener('click', () => {
       AudioEngine.init();
-      AudioEngine.toggle();
+      AudioEngine.setEnabled(!AudioEngine.isEnabled());
       updateMuteButton();
       AudioEngine.click();
+    });
+
+    $('music-btn')?.addEventListener('click', () => {
+      AudioEngine.init();
+      AudioEngine.toggleMusic();
+      updateMuteButton();
+      AudioEngine.click();
+    });
+
+    $('profile-btn')?.addEventListener('click', () => {
+      renderProfilePickers();
+      updateAuthUI();
+      AuthManager.renderGoogleButton($('google-btn-container'));
+      showScreen('profile');
+    });
+
+    $('profile-back')?.addEventListener('click', () => showScreen('menu'));
+    $('signin-prompt-btn')?.addEventListener('click', () => {
+      renderProfilePickers();
+      showScreen('profile');
+    });
+
+    $('login-google')?.addEventListener('click', () => {
+      AuthManager.signInGoogle();
+      showToast('Signed in with Google!');
+      showScreen('menu');
+    });
+
+    $('login-facebook')?.addEventListener('click', () => {
+      AuthManager.signInFacebook();
+      showToast('Signed in with Facebook!');
+      showScreen('menu');
+    });
+
+    $('login-x')?.addEventListener('click', () => {
+      AuthManager.signInX();
+      showToast('Signed in with X!');
+      showScreen('menu');
+    });
+
+    $('logout-btn')?.addEventListener('click', () => {
+      AuthManager.signOut();
+      reloadProgress();
+      showToast('Signed out — playing as guest');
+      showScreen('menu');
+    });
+
+    $('save-profile-btn')?.addEventListener('click', () => {
+      const name = $('profile-name-input')?.value?.trim() || 'Player';
+      const avatar = $('profile-avatar')?.textContent || '😎';
+      const frame = $('profile-frame')?.style.getPropertyValue('--frame-color')?.trim() || '#6c5ce7';
+      AuthManager.setProfile({ name, avatar, frame });
+      showToast('Profile saved!');
+      updateAuthUI();
+    });
+
+    $('invite-btn')?.addEventListener('click', async () => {
+      const result = await AuthManager.inviteFriends();
+      showToast(result?.copied ? 'Invite link copied!' : 'Share with friends!');
+    });
+
+    $('invite-win-btn')?.addEventListener('click', async () => {
+      await AuthManager.inviteFriends();
+      showToast('Invite sent!');
     });
 
     $('inv-bomb')?.addEventListener('click', () => startPlacement('bomb'));
