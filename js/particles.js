@@ -5,6 +5,7 @@ const ParticleSystem = (() => {
   let animating = false;
 
   function init(canvasEl) {
+    if (!canvasEl) return;
     canvas = canvasEl;
     ctx = canvas.getContext('2d');
     resize();
