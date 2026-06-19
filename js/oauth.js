@@ -4,9 +4,9 @@ const OAuthHelper = (() => {
   function redirectUri() {
     const origin = window.location.origin;
     if (origin && origin !== 'null' && !origin.startsWith('file')) {
-      return `${origin}/auth/callback.html`;
+      return `${origin}/auth/callback`;
     }
-    return `${MTEPOP_CONFIG.appUrl}/auth/callback.html`;
+    return `${MTEPOP_CONFIG.appUrl.replace(/\/$/, '')}/auth/callback`;
   }
 
   function randomString(len) {

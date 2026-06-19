@@ -4,7 +4,7 @@ const MTEPOP_CONFIG = {
   inviteMessage: 'Join me on MTE POP — tap matching blocks to pop!',
 
   // OAuth — add your app credentials from each provider's developer console.
-  // Redirect URI for Discord/X: https://mte-pop.vercel.app/auth/callback.html
+  // Redirect URI for Discord/X (paste exactly in Discord portal): https://mte-pop.vercel.app/auth/callback
   googleClientId: '',
   facebookAppId: '',
   xClientId: '',
