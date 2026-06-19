@@ -1,9 +1,9 @@
 const Game = (() => {
   const SHOP_ITEMS = [
-    { id: 'bomb', label: 'Bomb', iconClass: 'shop-icon-bomb', iconKey: 'shopBomb', desc: 'Blasts a 5×5 area!', price: 100, type: 'bomb' },
-    { id: 'rocket', label: 'Rocket', iconClass: 'shop-icon-rocket', iconKey: 'shopRocket', desc: 'Clears a full row or column', price: 150, type: 'rocket_h' },
-    { id: 'disco', label: 'Disco Ball', iconClass: 'shop-icon-disco', iconKey: 'shopDisco', desc: 'Destroys all blocks of one color', price: 200, type: 'disco' },
-    { id: 'extra_moves', label: '+5 Moves', iconClass: 'shop-icon-moves', iconKey: 'shopMoves', desc: 'Instantly add 5 extra moves', price: 250, type: 'extra_moves' }
+    { id: 'bomb', label: 'Bomb', icon: '💣', desc: 'Blasts a 5×5 area!', price: 100, type: 'bomb' },
+    { id: 'rocket', label: 'Rocket', icon: '🚀', desc: 'Clears a full row or column', price: 150, type: 'rocket_h' },
+    { id: 'disco', label: 'Disco Ball', icon: '🪩', desc: 'Destroys all blocks of one color', price: 200, type: 'disco' },
+    { id: 'extra_moves', label: '+5 Moves', icon: '⚡', desc: 'Instantly add 5 extra moves', price: 250, type: 'extra_moves' }
   ];
 
   const STATION_DATA = [
@@ -22,7 +22,7 @@ const Game = (() => {
   let board = null;
   let currentLevel = 1;
   let placementMode = null;
-  let progress = AuthManager.loadProgress();
+  let progress = null;
 
   const $ = id => document.getElementById(id);
   const screens = {
@@ -68,10 +68,7 @@ const Game = (() => {
       $('profile-avatar').textContent = prof.avatar;
       $('profile-avatar').style.background = avatarColor;
     }
-    if ($('profile-avatar-mini')) {
-      $('profile-avatar-mini').textContent = prof.avatar;
-      $('profile-avatar-mini').style.background = avatarColor;
-    }
+
     if ($('profile-frame')) $('profile-frame').style.setProperty('--frame-color', prof.frame);
     if ($('profile-provider')) {
       $('profile-provider').textContent = loggedIn
@@ -101,8 +98,7 @@ const Game = (() => {
         const color = AuthManager.avatarColor(letter);
         $('profile-avatar').textContent = letter;
         $('profile-avatar').style.background = color;
-        $('profile-avatar-mini').textContent = letter;
-        $('profile-avatar-mini').style.background = color;
+
       });
       avatars.appendChild(btn);
     });
@@ -171,16 +167,15 @@ const Game = (() => {
 
       const el = document.createElement('div');
       el.className = 'shop-item';
-      const shopIcon = (typeof MTEIcons !== 'undefined' && MTEIcons[item.iconKey]) || '';
       el.innerHTML = `
-        <div class="shop-item-icon ${item.iconClass}">${shopIcon}</div>
+        <div class="shop-item-icon">${item.icon}</div>
         <div class="shop-item-info">
           <span class="shop-item-name">${item.label}</span>
           <span class="shop-item-desc">${item.desc}</span>
           <span class="shop-item-owned">In bag: ${owned}</span>
         </div>
         <button class="shop-buy-btn ${canAfford ? '' : 'disabled'}" type="button">
-          ${item.price} coins
+          🪙 ${item.price}
         </button>
       `;
       const btn = el.querySelector('.shop-buy-btn');
@@ -231,7 +226,9 @@ const Game = (() => {
 
   function buildLevelMap() {
     const map = $('level-map');
-    if (!map) return;
+    if (!map || typeof LEVELS === 'undefined') return;
+
+    try {
     map.innerHTML = '<div class="map-sky"></div><div class="map-ground"></div>';
 
     const track = document.createElement('div');
@@ -282,6 +279,14 @@ const Game = (() => {
       const current = map.querySelector('.map-station.current');
       if (current) current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
+    } catch (err) {
+      console.error('Map build failed:', err);
+      map.innerHTML = '<p class="map-error">Could not load map. Tap back and try again.</p>';
+    }
+  }
+
+  function renderStarRow(filled, total = 3) {
+    return '★'.repeat(Math.min(filled, total)) + '☆'.repeat(Math.max(0, total - filled));
   }
 
   function calcCellSize(width, height) {
@@ -626,7 +631,7 @@ const Game = (() => {
       updateMenuStats();
 
       $('win-score').textContent = score;
-      $('win-stars').innerHTML = renderStarRow(stars);
+      $('win-stars').textContent = renderStarRow(stars);
       updateAuthUI();
       $('win-modal').classList.remove('hidden');
     },
@@ -678,45 +683,20 @@ const Game = (() => {
     board.resetHintTimer();
   }
 
-  function setIcon(el, svg) {
-    if (el) el.innerHTML = svg;
-  }
-
-  function renderStarRow(filled, total = 3) {
-    if (typeof MTEIcons !== 'undefined' && MTEIcons.star) {
-      let html = '';
-      for (let i = 0; i < total; i++) {
-        html += `<span class="star-icon${i < filled ? ' filled' : ''}">${MTEIcons.star}</span>`;
-      }
-      return html;
-    }
-    return '★'.repeat(filled) + '☆'.repeat(total - filled);
-  }
-
-  function injectStaticIcons() {
-    if (typeof MTEIcons === 'undefined') return;
-    setIcon($('play-icon'), MTEIcons.play);
-    setIcon($('map-icon'), MTEIcons.map);
-    setIcon($('shop-icon'), MTEIcons.shop);
-    setIcon($('share-icon'), MTEIcons.share);
-    setIcon($('stat-star-icon'), MTEIcons.star);
-    setIcon($('stat-trophy-icon'), MTEIcons.trophy);
-    setIcon($('stat-coin-icon'), MTEIcons.coin);
-    setIcon($('shop-coin-icon'), MTEIcons.coin);
-    [$('profile-back'), $('shop-back'), $('level-back'), $('game-back')].forEach(el => setIcon(el, MTEIcons.back));
-    updateMuteButton();
-  }
+  const SVG_MUSIC_ON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>';
+  const SVG_MUSIC_OFF = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 0 0 10 17v-4H6V3h6z"/></svg>';
+  const SVG_SOUND_ON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.06A4.494 4.494 0 0 0 16.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+  const SVG_SOUND_OFF = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12A4.494 4.494 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3z"/></svg>';
 
   function updateMuteButton() {
-    if (typeof MTEIcons === 'undefined') return;
     const btn = $('mute-btn');
     if (btn) {
-      setIcon(btn, AudioEngine.isEnabled() ? MTEIcons.soundOn : MTEIcons.soundOff);
+      btn.innerHTML = AudioEngine.isEnabled() ? SVG_SOUND_ON : SVG_SOUND_OFF;
       btn.classList.toggle('muted', !AudioEngine.isEnabled());
     }
     const musicBtn = $('music-btn');
     if (musicBtn) {
-      setIcon(musicBtn, AudioEngine.isMusicEnabled() ? MTEIcons.musicOn : MTEIcons.musicOff);
+      musicBtn.innerHTML = AudioEngine.isMusicEnabled() ? SVG_MUSIC_ON : SVG_MUSIC_OFF;
       musicBtn.classList.toggle('muted', !AudioEngine.isMusicEnabled());
     }
   }
@@ -724,9 +704,10 @@ const Game = (() => {
   function init() {
     AuthManager.init();
     PWA.init();
+    progress = AuthManager.loadProgress();
     reloadProgress();
     ParticleSystem.init(particlesCanvas);
-    injectStaticIcons();
+    updateMuteButton();
     renderShop();
     renderProfilePickers();
     updateAuthUI();
@@ -846,15 +827,17 @@ const Game = (() => {
       updateAuthUI();
     });
 
-    $('invite-btn')?.addEventListener('click', async () => {
-      const result = await AuthManager.inviteFriends();
-      showToast(result?.copied ? 'Invite link copied!' : 'Share with friends!');
-    });
+    async function handleInvite() {
+      try {
+        const result = await AuthManager.inviteFriends();
+        showToast(result?.message || (result?.copied ? 'Invite link copied!' : 'Invite ready — share the link!'));
+      } catch {
+        showToast('Could not share — copy link from browser address bar');
+      }
+    }
 
-    $('invite-win-btn')?.addEventListener('click', async () => {
-      await AuthManager.inviteFriends();
-      showToast('Invite sent!');
-    });
+    $('invite-btn')?.addEventListener('click', handleInvite);
+    $('invite-win-btn')?.addEventListener('click', handleInvite);
 
     $('inv-bomb')?.addEventListener('click', () => startPlacement('bomb'));
     $('inv-rocket')?.addEventListener('click', () => startPlacement('rocket_h'));
