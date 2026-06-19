@@ -152,6 +152,8 @@ body {
   min-height: 48px;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  position: relative;
+  z-index: 2;
 }
 
 .btn-primary {
@@ -1729,6 +1731,17 @@ body {
 }
 
 .toast.hidden { display: none; }
+
+.invite-url {
+  word-break: break-all;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin: 0.5rem 0 1rem;
+  color: #fff;
+}
 
 .win-guest-hint {
   font-size: 0.9rem;
