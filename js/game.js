@@ -171,20 +171,59 @@ const Game = (() => {
 
   function calcCellSize(width, height) {
     const wrapper = boardEl.parentElement;
-    const maxW = wrapper.clientWidth - 20;
-    const maxH = wrapper.clientHeight - 20;
-    const gap = 3, pad = 12;
+    if (!wrapper) return 42;
+    const maxW = wrapper.clientWidth - 12;
+    const maxH = wrapper.clientHeight - 12;
+    const gap = 3, pad = 16;
     const sizeW = (maxW - pad - gap * (width - 1)) / width;
     const sizeH = (maxH - pad - gap * (height - 1)) / height;
-    return Math.min(sizeW, sizeH, 52);
+    const isMobile = window.innerWidth < 520 || 'ontouchstart' in window;
+    const maxCell = isMobile ? 44 : 52;
+    return Math.max(26, Math.min(sizeW, sizeH, maxCell));
   }
 
-  function renderBoard() {
-    boardEl.innerHTML = '';
+  function applyBoardSizing() {
+    if (!board) return;
     const cellSize = calcCellSize(board.width, board.height);
     boardEl.style.setProperty('--cell-size', cellSize + 'px');
     boardEl.style.gridTemplateColumns = `repeat(${board.width}, ${cellSize}px)`;
     boardEl.style.gridTemplateRows = `repeat(${board.height}, ${cellSize}px)`;
+  }
+
+  function resizeBoard() {
+    if (!board || !screens.game.classList.contains('active')) return;
+    applyBoardSizing();
+    ParticleSystem.resize();
+  }
+
+  function bindCellInput(cell, row, col) {
+    let tapStart = null;
+
+    cell.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      tapStart = { x: e.clientX, y: e.clientY, id: e.pointerId };
+      cell.setPointerCapture(e.pointerId);
+    }, { passive: true });
+
+    cell.addEventListener('pointerup', (e) => {
+      if (!tapStart || e.pointerId !== tapStart.id) return;
+      const dx = Math.abs(e.clientX - tapStart.x);
+      const dy = Math.abs(e.clientY - tapStart.y);
+      tapStart = null;
+      if (dx <= 14 && dy <= 14) {
+        e.preventDefault();
+        onCellTap(row, col);
+      }
+      try { cell.releasePointerCapture(e.pointerId); } catch (_) { /* noop */ }
+    });
+
+    cell.addEventListener('pointercancel', () => { tapStart = null; });
+    cell.addEventListener('contextmenu', (e) => e.preventDefault());
+  }
+
+  function renderBoard() {
+    boardEl.innerHTML = '';
+    applyBoardSizing();
 
     for (let row = 0; row < board.height; row++) {
       for (let col = 0; col < board.width; col++) {
@@ -200,7 +239,7 @@ const Game = (() => {
           cell.classList.add('empty');
         }
 
-        cell.addEventListener('click', () => onCellTap(row, col));
+        bindCellInput(cell, row, col);
         boardEl.appendChild(cell);
       }
     }
@@ -554,7 +593,24 @@ const Game = (() => {
 
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) board?.clearHint();
+      else setTimeout(resizeBoard, 200);
     });
+
+    let resizeTimer;
+    function scheduleResize() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(resizeBoard, 100);
+    }
+    window.addEventListener('resize', scheduleResize);
+    window.addEventListener('orientationchange', () => setTimeout(resizeBoard, 350));
+    window.visualViewport?.addEventListener('resize', scheduleResize);
+
+    const boardWrapper = boardEl.parentElement;
+    boardWrapper?.addEventListener('touchmove', (e) => {
+      if (screens.game.classList.contains('active')) e.preventDefault();
+    }, { passive: false });
+
+    boardEl.addEventListener('gesturestart', (e) => e.preventDefault());
   }
 
   return { init };
