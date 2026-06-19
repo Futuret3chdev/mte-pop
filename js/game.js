@@ -118,12 +118,37 @@ const Game = (() => {
   }
 
   function showScreen(name) {
-    Object.values(screens).forEach(s => s?.classList.remove('active'));
-    screens[name]?.classList.add('active');
+    const targetId = `${name}-screen`;
+    document.querySelectorAll('#app > .screen').forEach(s => {
+      s.classList.toggle('active', s.id === targetId);
+    });
     if (name !== 'game') clearPlacementMode();
     if (name === 'shop') renderShop();
     if (name === 'level') buildLevelMap();
-    updateMenuStats();
+    if (progress) updateMenuStats();
+  }
+
+  function openLevelMap() {
+    AudioEngine.init();
+    AudioEngine.click();
+    try {
+      showScreen('level');
+    } catch (err) {
+      console.error('Map open failed:', err);
+      document.querySelectorAll('#app > .screen').forEach(s => s.classList.remove('active'));
+      $('level-screen')?.classList.add('active');
+      buildLevelMap();
+    }
+  }
+
+  function getInviteUrl() {
+    return MTEPOP_CONFIG.appUrl || window.location.href;
+  }
+
+  function showInviteModal() {
+    const url = getInviteUrl();
+    if ($('invite-url')) $('invite-url').textContent = url;
+    $('invite-modal')?.classList.remove('hidden');
   }
 
   function calcStars(movesLeft) {
@@ -225,8 +250,8 @@ const Game = (() => {
   }
 
   function buildLevelMap() {
-    const map = $('level-map');
-    if (!map || typeof LEVELS === 'undefined') return;
+    const map = $('level-map') || $('level-grid');
+    if (!map || typeof LEVELS === 'undefined' || !progress) return;
 
     try {
     map.innerHTML = '<div class="map-sky"></div><div class="map-ground"></div>';
@@ -303,7 +328,7 @@ const Game = (() => {
   }
 
   function applyBoardSizing() {
-    if (!board) return;
+    if (!board || !boardEl) return;
     const cellSize = calcCellSize(board.width, board.height);
     boardEl.style.setProperty('--cell-size', cellSize + 'px');
     boardEl.style.gridTemplateColumns = `repeat(${board.width}, ${cellSize}px)`;
@@ -311,7 +336,7 @@ const Game = (() => {
   }
 
   function resizeBoard() {
-    if (!board || !screens.game?.classList.contains('active')) return;
+    if (!board || !$('game-screen')?.classList.contains('active')) return;
     applyBoardSizing();
     ParticleSystem.resize();
   }
@@ -342,6 +367,7 @@ const Game = (() => {
   }
 
   function renderBoard() {
+    if (!boardEl || !board) return;
     boardEl.innerHTML = '';
     applyBoardSizing();
 
@@ -429,6 +455,7 @@ const Game = (() => {
 
   function renderGoals() {
     const panel = $('goals-panel');
+    if (!panel || !board) return;
     panel.innerHTML = '';
 
     const goalLabels = { box: 'Boxes', stone: 'Stones', vase: 'Vases' };
@@ -701,26 +728,43 @@ const Game = (() => {
     }
   }
 
-  function init() {
-    AuthManager.init();
-    PWA.init();
-    progress = AuthManager.loadProgress();
-    reloadProgress();
-    ParticleSystem.init(particlesCanvas);
-    updateMuteButton();
-    renderShop();
-    renderProfilePickers();
-    updateAuthUI();
-
-    if (AudioEngine.isMusicEnabled()) {
-      AudioEngine.init();
-      AudioEngine.startMusic();
+  async function handleInvite() {
+    AudioEngine.init();
+    AudioEngine.click();
+    if (navigator.share) {
+      try {
+        const result = await AuthManager.inviteFriends();
+        showToast(result?.message || 'Invite shared!');
+        return;
+      } catch (err) {
+        if (err?.name === 'AbortError') {
+          showToast('Share cancelled');
+          return;
+        }
+      }
     }
+    showInviteModal();
+  }
+
+  function onAppClick(e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.id === 'level-select-btn') {
+      e.preventDefault();
+      openLevelMap();
+    } else if (btn.id === 'invite-btn' || btn.id === 'invite-win-btn') {
+      e.preventDefault();
+      handleInvite();
+    }
+  }
+
+  function bindUI() {
+    $('app')?.addEventListener('click', onAppClick);
 
     document.addEventListener('mtepop:authchange', () => {
       reloadProgress();
       renderProfilePickers();
-      if (screens.level?.classList.contains('active')) buildLevelMap();
+      if ($('level-screen')?.classList.contains('active')) buildLevelMap();
     });
 
     $('play-btn')?.addEventListener('click', () => {
@@ -728,11 +772,6 @@ const Game = (() => {
       if (!AudioEngine.isMusicEnabled()) AudioEngine.setMusicEnabled(true);
       updateMuteButton();
       startLevel(AuthManager.getPlayLevel(progress));
-    });
-
-    $('level-select-btn')?.addEventListener('click', () => {
-      AudioEngine.init();
-      showScreen('level');
     });
 
     $('shop-btn')?.addEventListener('click', () => {
@@ -827,17 +866,42 @@ const Game = (() => {
       updateAuthUI();
     });
 
-    async function handleInvite() {
+    $('invite-copy-btn')?.addEventListener('click', async () => {
+      const text = `${MTEPOP_CONFIG.inviteMessage}\n${getInviteUrl()}`;
       try {
-        const result = await AuthManager.inviteFriends();
-        showToast(result?.message || (result?.copied ? 'Invite link copied!' : 'Invite ready — share the link!'));
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          showToast('Invite link copied!');
+        } else {
+          showToast('Copy the link shown above');
+        }
       } catch {
-        showToast('Could not share — copy link from browser address bar');
+        showToast('Copy the link shown above');
       }
-    }
+    });
 
-    $('invite-btn')?.addEventListener('click', handleInvite);
-    $('invite-win-btn')?.addEventListener('click', handleInvite);
+    $('invite-share-btn')?.addEventListener('click', async () => {
+      if (!navigator.share) {
+        showToast('Sharing not supported — use Copy Link');
+        return;
+      }
+      try {
+        const url = getInviteUrl();
+        await navigator.share({
+          title: MTEPOP_CONFIG.appName,
+          text: MTEPOP_CONFIG.inviteMessage,
+          url
+        });
+        $('invite-modal')?.classList.add('hidden');
+        showToast('Invite shared!');
+      } catch (err) {
+        if (err?.name !== 'AbortError') showToast('Could not open share menu');
+      }
+    });
+
+    $('invite-close-btn')?.addEventListener('click', () => {
+      $('invite-modal')?.classList.add('hidden');
+    });
 
     $('inv-bomb')?.addEventListener('click', () => startPlacement('bomb'));
     $('inv-rocket')?.addEventListener('click', () => startPlacement('rocket_h'));
@@ -867,13 +931,47 @@ const Game = (() => {
     window.visualViewport?.addEventListener('resize', scheduleResize);
 
     boardEl?.parentElement?.addEventListener('touchmove', (e) => {
-      if (screens.game?.classList.contains('active')) e.preventDefault();
+      if ($('game-screen')?.classList.contains('active')) e.preventDefault();
     }, { passive: false });
 
     boardEl?.addEventListener('gesturestart', (e) => e.preventDefault());
   }
 
+  function init() {
+    bindUI();
+
+    try {
+      AuthManager.init();
+      PWA.init();
+      progress = AuthManager.loadProgress();
+      reloadProgress();
+    } catch (err) {
+      console.error('Startup failed:', err);
+      progress = progress || AuthManager.DEFAULT_PROGRESS;
+    }
+
+    try {
+      ParticleSystem.init(particlesCanvas);
+    } catch (err) {
+      console.warn('Particles unavailable:', err);
+    }
+
+    updateMuteButton();
+    try { renderShop(); } catch (err) { console.warn('Shop render failed:', err); }
+    try { renderProfilePickers(); } catch (err) { console.warn('Profile pickers failed:', err); }
+    updateAuthUI();
+
+    if (AudioEngine.isMusicEnabled()) {
+      AudioEngine.init();
+      AudioEngine.startMusic();
+    }
+  }
+
   return { init };
 })();
 
-document.addEventListener('DOMContentLoaded', Game.init);
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', Game.init);
+} else {
+  Game.init();
+}
