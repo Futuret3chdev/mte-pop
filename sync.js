@@ -104,13 +104,88 @@ function syncVercel() {
     execSync('npx vercel@latest --prod --yes', { cwd: ROOT, env, stdio: 'inherit' });
     console.log('✅ Vercel: https://mte-pop.vercel.app');
   } catch (e) {
-    console.error('⚠️  Vercel deploy failed — GitHub push succeeded. Vercel may auto-deploy via Git integration.');
-    process.exitCode = 1;
+    console.error('⚠️  Vercel CLI failed, trying REST API fallback...');
+    try {
+      execSync(`"${process.execPath}" deploy-vercel-api.js`, { cwd: ROOT, stdio: 'inherit' });
+      console.log('✅ Vercel (API): https://mte-pop.vercel.app');
+    } catch (e2) {
+      console.error('⚠️  Vercel deploy failed — GitHub push succeeded. Vercel may auto-deploy via Git integration.');
+      process.exitCode = 1;
+    }
   }
+}
+
+function ensureIcons() {
+  const iconDir = path.join(ROOT, 'icons');
+  const icon192 = path.join(iconDir, 'icon-192.png');
+  const icon512 = path.join(iconDir, 'icon-512.png');
+  if (fs.existsSync(icon192) && fs.existsSync(icon512)) return;
+
+  const zlib = require('zlib');
+  const crc32 = (buf) => {
+    let c = 0xffffffff;
+    const table = crc32.table || (crc32.table = (() => {
+      const t = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let x = n;
+        for (let k = 0; k < 8; k++) x = (x & 1) ? (0xedb88320 ^ (x >>> 1)) : (x >>> 1);
+        t[n] = x;
+      }
+      return t;
+    })());
+    for (let i = 0; i < buf.length; i++) c = table[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const typeBuf = Buffer.from(type, 'ascii');
+    const crcBuf = Buffer.alloc(4); crcBuf.writeUInt32BE(crc32(Buffer.concat([typeBuf, data])));
+    return Buffer.concat([len, typeBuf, data, crcBuf]);
+  };
+  const colorAt = (x, y, size) => {
+    const pad = Math.floor(size * 0.12);
+    const gap = Math.floor(size * 0.04);
+    const tile = Math.floor((size - pad * 2 - gap) / 2);
+    const colors = [[255, 71, 87], [46, 213, 115], [55, 66, 250], [255, 165, 2]];
+    const cols = [[pad, pad], [pad + tile + gap, pad], [pad, pad + tile + gap], [pad + tile + gap, pad + tile + gap]];
+    for (let i = 0; i < 4; i++) {
+      const [cx, cy] = cols[i];
+      if (x >= cx && x < cx + tile && y >= cy && y < cy + tile) return [...colors[i], 255];
+    }
+    return [108 + Math.floor((x / size) * 20), 92 + Math.floor((y / size) * 30), 231, 255];
+  };
+  const createPng = (size) => {
+    const rows = [];
+    for (let y = 0; y < size; y++) {
+      const row = Buffer.alloc(1 + size * 4);
+      row[0] = 0;
+      for (let x = 0; x < size; x++) {
+        const [r, g, b, a] = colorAt(x, y, size);
+        const i = 1 + x * 4;
+        row[i] = r; row[i + 1] = g; row[i + 2] = b; row[i + 3] = a;
+      }
+      rows.push(row);
+    }
+    const ihdr = Buffer.alloc(13);
+    ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+    ihdr[8] = 8; ihdr[9] = 6;
+    return Buffer.concat([
+      Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+      chunk('IHDR', ihdr),
+      chunk('IDAT', zlib.deflateSync(Buffer.concat(rows), { level: 9 })),
+      chunk('IEND', Buffer.alloc(0))
+    ]);
+  };
+
+  if (!fs.existsSync(iconDir)) fs.mkdirSync(iconDir, { recursive: true });
+  console.log('🖼  Generating PWA icons...');
+  fs.writeFileSync(icon192, createPng(192));
+  fs.writeFileSync(icon512, createPng(512));
 }
 
 (async () => {
   console.log(`🎮 MTE POP Sync — "${MESSAGE}"`);
+  ensureIcons();
   const token = getGhToken();
   await syncGitHub(token);
   syncVercel();
