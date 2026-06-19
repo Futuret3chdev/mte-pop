@@ -14,5 +14,8 @@ const MTEIcons = {
   coin: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="10" opacity=".35"/><path d="M12 6v12M9 9h4.5a2.5 2.5 0 0 1 0 5H9m0-5h6m-6 5h5a2.5 2.5 0 0 0 0-5H9"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>',
   close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
-  install: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>'
+  shopBomb: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="14" r="7"/><path d="M12 7V4M14 5l2-2M10 5L8 3" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>',
+  shopRocket: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2c-2 4-2 8 0 12 2-1 4-3 5-6-1-3-3-5-5-6z"/><path d="M9 18l-1 4 4-1M15 18l1 4-4-1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>',
+  shopDisco: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8" opacity=".9"/><circle cx="12" cy="12" r="3" fill="rgba(255,255,255,.5)"/></svg>',
+  shopMoves: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M13 3L5 12l8 9M6 12h14"/></svg>'
 };
