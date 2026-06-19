@@ -206,6 +206,7 @@ const AuthManager = (() => {
   }
 
   function renderGoogleButton(container) {
+    if (!container) return;
     const clientId = MTEPOP_CONFIG.googleClientId;
     if (clientId && window.google?.accounts?.id) {
       container.innerHTML = '';
