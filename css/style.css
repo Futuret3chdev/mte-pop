@@ -262,12 +262,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.profile-icon {
-  width: 26px;
-  height: 26px;
+  font-size: 1.35rem;
+  line-height: 1;
   color: #fff;
+  touch-action: manipulation;
 }
 
 .stat-icon {
@@ -288,13 +286,9 @@ body {
   align-items: center;
   justify-content: center;
   color: #fff;
-  padding: 10px;
-}
-
-.btn-icon svg {
-  width: 22px;
-  height: 22px;
-  display: block;
+  padding: 0;
+  font-size: 1.2rem;
+  line-height: 1;
 }
 
 .btn-icon.muted {
@@ -1600,11 +1594,59 @@ body {
   opacity: 0.75;
 }
 
-.auth-section, .customize-section {
+.auth-section, .customize-section, .settings-section {
   background: rgba(0,0,0,0.25);
   border-radius: 16px;
   padding: 1.2rem;
   color: #fff;
+}
+
+.settings-section h4,
+.customize-section h4 {
+  margin-bottom: 0.6rem;
+  font-size: 1.1rem;
+}
+
+.settings-hint {
+  font-size: 0.85rem;
+  opacity: 0.85;
+  margin-bottom: 0.75rem;
+}
+
+.invite-link {
+  display: block;
+  word-break: break-all;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  color: #ffeaa7;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  text-decoration: underline;
+  margin-bottom: 0.85rem;
+}
+
+.invite-link:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.invite-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.invite-actions .btn-secondary {
+  flex: 1;
+  min-width: 130px;
+  font-size: 0.95rem;
+  padding: 0.75rem 1rem;
+}
+
+.auth-section h4 {
+  margin-bottom: 0.4rem;
+  font-size: 1.1rem;
 }
 
 .auth-hint {
@@ -1637,10 +1679,33 @@ body {
   min-height: 48px;
 }
 
-.social-icon {
-  width: 22px;
-  height: 22px;
+.social-badge {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.85rem;
+  font-weight: 800;
   flex-shrink: 0;
+  line-height: 1;
+}
+
+.social-badge-google {
+  background: #fff;
+  color: #4285F4;
+  border: 1px solid #ddd;
+}
+
+.social-badge-facebook {
+  background: #fff;
+  color: #1877F2;
+}
+
+.social-badge-x {
+  background: #fff;
+  color: #000;
 }
 
 .btn-google {
@@ -1667,11 +1732,6 @@ body {
 
 .google-btn-container:empty {
   display: none;
-}
-
-.customize-section h4 {
-  margin-bottom: 0.8rem;
-  font-size: 1.1rem;
 }
 
 .customize-section.disabled-section {
@@ -1750,17 +1810,6 @@ body {
 }
 
 .toast.hidden { display: none; }
-
-.invite-url {
-  word-break: break-all;
-  background: rgba(0, 0, 0, 0.2);
-  padding: 0.75rem 1rem;
-  border-radius: 10px;
-  font-size: 0.85rem;
-  line-height: 1.4;
-  margin: 0.5rem 0 1rem;
-  color: #fff;
-}
 
 .win-guest-hint {
   font-size: 0.9rem;
