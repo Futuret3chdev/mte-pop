@@ -156,6 +156,7 @@ const AuthManager = (() => {
     const merged = mergeProgress(existing, guestProgress);
     saveProgress(merged);
     dispatchAuthChange();
+    return true;
   }
 
   function signOut() {
@@ -170,8 +171,21 @@ const AuthManager = (() => {
     }));
   }
 
+  function allowDemo() {
+    if (MTEPOP_CONFIG.demoAuth) return true;
+    const host = window.location.hostname;
+    return host === 'localhost' || host === '127.0.0.1';
+  }
+
   function demoSignIn(provider) {
-    const names = { google: 'Google Player', facebook: 'Facebook Player', x: 'X Player' };
+    if (!allowDemo()) return { ok: false, error: `${provider} sign-in is not configured yet` };
+    const names = {
+      google: 'Google Player',
+      facebook: 'Facebook Player',
+      x: 'X Player',
+      discord: 'Discord Player',
+      telegram: 'Telegram Player'
+    };
     const id = `${provider}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     signIn({
       id,
@@ -179,7 +193,7 @@ const AuthManager = (() => {
       name: names[provider] || 'Player',
       avatar: profile.avatar || 'P'
     });
-    return true;
+    return { ok: true };
   }
 
   function initGoogle() {
@@ -194,30 +208,39 @@ const AuthManager = (() => {
           signIn({
             id: `google_${payload.sub}`,
             provider: 'google',
-            name: payload.name || 'Google Player',
+            name: payload.name || payload.given_name || 'Google Player',
             email: payload.email,
-            avatar: profile.avatar
+            avatar: (payload.given_name || payload.name || 'G').charAt(0).toUpperCase()
           });
         } catch {
-          demoSignIn('google');
+          console.warn('Google credential parse failed');
         }
-      }
+      },
+      auto_select: false,
+      cancel_on_tap_outside: true
     });
   }
 
   function renderGoogleButton(container) {
     if (!container) return;
     const clientId = MTEPOP_CONFIG.googleClientId;
+    const customBtn = document.getElementById('login-google');
+
     if (clientId && window.google?.accounts?.id) {
+      if (customBtn) customBtn.classList.add('hidden');
       container.innerHTML = '';
       google.accounts.id.renderButton(container, {
         type: 'standard',
         theme: 'outline',
         size: 'large',
-        width: 280,
-        text: 'signin_with',
-        shape: 'pill'
+        width: Math.min(320, container.clientWidth || 320),
+        text: 'signup_with',
+        shape: 'pill',
+        logo_alignment: 'left'
       });
+    } else {
+      container.innerHTML = '';
+      if (customBtn) customBtn.classList.remove('hidden');
     }
   }
 
@@ -227,53 +250,195 @@ const AuthManager = (() => {
     FB.init({ appId, cookie: true, xfbml: false, version: 'v19.0' });
   }
 
-  function signInFacebook() {
+  async function signInFacebook() {
     const appId = MTEPOP_CONFIG.facebookAppId;
     if (!appId || !window.FB) return demoSignIn('facebook');
+
     return new Promise((resolve) => {
       FB.login((res) => {
-        if (res.authResponse) {
-          FB.api('/me', { fields: 'name,picture' }, (me) => {
-            signIn({
-              id: `facebook_${res.authResponse.userID}`,
-              provider: 'facebook',
-              name: me?.name || 'Facebook Player',
-              avatar: profile.avatar
-            });
-            resolve(true);
+        if (!res.authResponse) {
+          resolve({ ok: false, error: 'Facebook sign-in cancelled' });
+          return;
+        }
+        FB.api('/me', { fields: 'name,picture' }, (me) => {
+          if (!me?.id) {
+            resolve({ ok: false, error: 'Could not load Facebook profile' });
+            return;
+          }
+          signIn({
+            id: `facebook_${me.id}`,
+            provider: 'facebook',
+            name: me.name || 'Facebook Player',
+            avatar: (me.name || 'F').charAt(0).toUpperCase()
           });
-        } else resolve(false);
-      }, { scope: 'public_profile' });
+          resolve({ ok: true });
+        });
+      }, { scope: 'public_profile,email' });
     });
   }
 
-  function signInX(handle) {
-    const clientId = MTEPOP_CONFIG.xClientId;
-    if (!clientId) {
-      const name = (handle || profile.name || 'player').replace('@', '').trim();
-      if (!name) return false;
-      signIn({
-        id: `x_${name}`,
-        provider: 'x',
-        name: name.startsWith('@') ? name : `@${name}`,
-        avatar: profile.avatar
+  async function signInGoogle() {
+    const clientId = MTEPOP_CONFIG.googleClientId;
+    if (clientId && window.google?.accounts?.id) {
+      google.accounts.id.prompt((notification) => {
+        if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+          const container = document.getElementById('google-btn-container');
+          if (container && !container.children.length) renderGoogleButton(container);
+        }
       });
-      return true;
-    }
-    return demoSignIn('x');
-  }
-
-  function signInGoogle() {
-    if (MTEPOP_CONFIG.googleClientId && window.google?.accounts?.id) {
-      google.accounts.id.prompt();
-      return true;
+      return { ok: true, pending: true };
     }
     return demoSignIn('google');
   }
 
+  async function signInXOAuth() {
+    const clientId = MTEPOP_CONFIG.xClientId;
+    if (!clientId) return { ok: false, needsHandle: true };
+
+    try {
+      const { verifier, challenge } = await OAuthHelper.createPkce();
+      const state = OAuthHelper.randomString(16);
+      sessionStorage.setItem('mtepop_oauth_provider', 'x');
+      sessionStorage.setItem(`mtepop_pkce_${state}`, verifier);
+
+      const redirect = encodeURIComponent(OAuthHelper.redirectUri());
+      const scope = encodeURIComponent('users.read tweet.read offline.access');
+      const url = `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirect}&scope=${scope}&state=${state}&code_challenge=${challenge}&code_challenge_method=S256`;
+
+      const result = await OAuthHelper.openPopup(url, state);
+      const verifierStored = sessionStorage.getItem(`mtepop_pkce_${state}`);
+      sessionStorage.removeItem(`mtepop_pkce_${state}`);
+
+      const token = await OAuthHelper.exchangeXCode(result.code, verifierStored);
+      const meRes = await fetch('https://api.twitter.com/2/users/me?user.fields=profile_image_url,name,username', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const meData = await meRes.json();
+      const me = meData.data;
+      if (!me?.id) throw new Error('Could not load X profile');
+
+      signIn({
+        id: `x_${me.id}`,
+        provider: 'x',
+        name: me.name || `@${me.username}`,
+        avatar: (me.name || me.username || 'X').charAt(0).toUpperCase()
+      });
+      return { ok: true };
+    } catch (err) {
+      if (err.message === 'Sign-in cancelled') return { ok: false, error: 'Cancelled' };
+      return { ok: false, error: err.message || 'X sign-in failed' };
+    }
+  }
+
+  function signInXHandle(handle) {
+    const name = (handle || '').replace('@', '').trim();
+    if (!name) return { ok: false, error: 'Enter a username' };
+
+    if (MTEPOP_CONFIG.xClientId) {
+      return { ok: false, error: 'Use Continue with X for official sign-in' };
+    }
+
+    if (!allowDemo()) {
+      return { ok: false, error: 'X sign-in is not configured yet' };
+    }
+
+    signIn({
+      id: `x_${name.toLowerCase()}`,
+      provider: 'x',
+      name: name.startsWith('@') ? name : `@${name}`,
+      avatar: name.charAt(0).toUpperCase()
+    });
+    return { ok: true };
+  }
+
+  async function signInDiscord() {
+    const clientId = MTEPOP_CONFIG.discordClientId;
+    if (!clientId) return demoSignIn('discord');
+
+    try {
+      const { verifier, challenge } = await OAuthHelper.createPkce();
+      const state = OAuthHelper.randomString(16);
+      sessionStorage.setItem('mtepop_oauth_provider', 'discord');
+      sessionStorage.setItem(`mtepop_pkce_${state}`, verifier);
+
+      const redirect = encodeURIComponent(OAuthHelper.redirectUri());
+      const url = `https://discord.com/api/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirect}&response_type=code&scope=identify&state=${state}&code_challenge=${challenge}&code_challenge_method=S256`;
+
+      const result = await OAuthHelper.openPopup(url, state);
+      const verifierStored = sessionStorage.getItem(`mtepop_pkce_${state}`);
+      sessionStorage.removeItem(`mtepop_pkce_${state}`);
+
+      const token = await OAuthHelper.exchangeDiscordCode(result.code, verifierStored);
+      const meRes = await fetch('https://discord.com/api/users/@me', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const me = await meRes.json();
+      if (!me?.id) throw new Error('Could not load Discord profile');
+
+      signIn({
+        id: `discord_${me.id}`,
+        provider: 'discord',
+        name: me.global_name || me.username || 'Discord Player',
+        avatar: (me.global_name || me.username || 'D').charAt(0).toUpperCase()
+      });
+      return { ok: true };
+    } catch (err) {
+      if (err.message === 'Sign-in cancelled') return { ok: false, error: 'Cancelled' };
+      return { ok: false, error: err.message || 'Discord sign-in failed' };
+    }
+  }
+
+  function onTelegramAuth(tgUser) {
+    if (!tgUser?.id) return;
+    const name = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || tgUser.username || 'Telegram Player';
+    signIn({
+      id: `telegram_${tgUser.id}`,
+      provider: 'telegram',
+      name: tgUser.username ? `@${tgUser.username}` : name,
+      avatar: name.replace('@', '').charAt(0).toUpperCase()
+    });
+    document.dispatchEvent(new CustomEvent('mtepop:telegramauth', { detail: { ok: true } }));
+  }
+
+  function renderTelegramWidget(container) {
+    if (!container) return;
+    const bot = MTEPOP_CONFIG.telegramBotUsername;
+    container.innerHTML = '';
+
+    if (!bot) {
+      container.classList.add('hidden');
+      return;
+    }
+
+    container.classList.remove('hidden');
+    window.onTelegramAuth = onTelegramAuth;
+
+    const script = document.createElement('script');
+    script.src = 'https://telegram.org/js/telegram-widget.js?22';
+    script.async = true;
+    script.setAttribute('data-telegram-login', bot.replace('@', ''));
+    script.setAttribute('data-size', 'large');
+    script.setAttribute('data-radius', '12');
+    script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    script.setAttribute('data-request-access', 'write');
+    container.appendChild(script);
+  }
+
+  function isProviderConfigured(provider) {
+    const cfg = MTEPOP_CONFIG;
+    switch (provider) {
+      case 'google': return !!cfg.googleClientId;
+      case 'facebook': return !!cfg.facebookAppId;
+      case 'x': return !!cfg.xClientId || allowDemo();
+      case 'discord': return !!cfg.discordClientId || allowDemo();
+      case 'telegram': return !!cfg.telegramBotUsername;
+      default: return false;
+    }
+  }
+
   async function inviteFriends() {
-    const url = (window.location.origin && window.location.origin !== 'null')
-      ? window.location.origin + window.location.pathname
+    const url = (window.location.origin && window.location.origin !== 'null' && !window.location.origin.startsWith('file'))
+      ? window.location.origin + (window.location.pathname || '/')
       : (MTEPOP_CONFIG.appUrl || window.location.href);
     const text = `${MTEPOP_CONFIG.inviteMessage}\n${url}`;
     const title = MTEPOP_CONFIG.appName;
@@ -340,7 +505,10 @@ const AuthManager = (() => {
       script.src = 'https://accounts.google.com/gsi/client';
       script.async = true;
       script.defer = true;
-      script.onload = initGoogle;
+      script.onload = () => {
+        initGoogle();
+        renderGoogleButton(document.getElementById('google-btn-container'));
+      };
       document.head.appendChild(script);
     }
 
@@ -353,6 +521,7 @@ const AuthManager = (() => {
       document.head.appendChild(script);
     }
 
+    renderTelegramWidget(document.getElementById('telegram-login-container'));
     dispatchAuthChange();
   }
 
@@ -368,8 +537,12 @@ const AuthManager = (() => {
     signOut,
     signInGoogle,
     signInFacebook,
-    signInX,
+    signInXOAuth,
+    signInXHandle,
+    signInDiscord,
     renderGoogleButton,
+    renderTelegramWidget,
+    isProviderConfigured,
     inviteFriends,
     getPlayLevel,
     avatarColor,
