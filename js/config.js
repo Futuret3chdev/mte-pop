@@ -9,7 +9,7 @@ const MTEPOP_CONFIG = {
   facebookAppId: '',
   xClientId: '',
   xClientSecret: '',
-  discordClientId: '1366933578214277140',
+  discordClientId: '1348440616442265641',
   // Public bot username only (no @). Safe to commit.
   telegramBotUsername: 'mod_futuret3ch_bot',
   // 'deeplink' = shared multi-game bot. 'widget' = Login Widget (needs exclusive /setdomain).
