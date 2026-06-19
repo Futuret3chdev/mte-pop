@@ -1,7 +1,7 @@
 {
-  "name": "Toon Blast — MTECOSYSTEM",
-  "short_name": "Toon Blast",
-  "description": "Tap matching blocks to blast! Made by Futuret3ch and Memetorrent.",
+  "name": "MTE POP — MTECOSYSTEM",
+  "short_name": "MTE POP",
+  "description": "Tap matching blocks to pop! Made by Futuret3ch and Memetorrent.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
