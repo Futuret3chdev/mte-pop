@@ -110,7 +110,7 @@ function syncVercel() {
 }
 
 (async () => {
-  console.log(`🎮 Toon Blast Sync — "${MESSAGE}"`);
+  console.log(`🎮 MTE POP Sync — "${MESSAGE}"`);
   const token = getGhToken();
   await syncGitHub(token);
   syncVercel();
