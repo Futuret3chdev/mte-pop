@@ -2,8 +2,16 @@ const MTEPOP_CONFIG = {
   appUrl: 'https://mte-pop.vercel.app',
   appName: 'MTE POP',
   inviteMessage: 'Join me on MTE POP — tap matching blocks to pop!',
-  // Add OAuth client IDs from developer consoles to enable live sign-in:
+
+  // OAuth — add your app credentials from each provider's developer console.
+  // Redirect URI for Discord/X: https://mte-pop.vercel.app/auth/callback.html
   googleClientId: '',
   facebookAppId: '',
-  xClientId: ''
+  xClientId: '',
+  xClientSecret: '',
+  discordClientId: '',
+  telegramBotUsername: '',
+
+  // Demo sign-in fallback when IDs are empty (localhost only)
+  demoAuth: false
 };
