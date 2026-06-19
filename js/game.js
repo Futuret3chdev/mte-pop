@@ -168,10 +168,12 @@ const Game = (() => {
   }
 
   function getInviteUrl() {
-    if (window.location.origin && window.location.origin !== 'null') {
-      return window.location.origin + window.location.pathname;
+    const origin = window.location.origin;
+    const isUsableOrigin = origin && origin !== 'null' && !origin.startsWith('file');
+    if (isUsableOrigin) {
+      return origin + (window.location.pathname || '/');
     }
-    return MTEPOP_CONFIG.appUrl || window.location.href;
+    return MTEPOP_CONFIG.appUrl || 'https://mte-pop.vercel.app';
   }
 
   function updateInviteSection() {
@@ -237,18 +239,20 @@ const Game = (() => {
       const owned = (data.inventory && data.inventory[invKey]) || 0;
       const canAfford = data.coins >= item.price;
 
-      const el = document.createElement('div');
+      const el = document.createElement('article');
       el.className = 'shop-item';
       el.innerHTML = `
-        <div class="shop-item-icon">${item.icon}</div>
-        <div class="shop-item-info">
-          <span class="shop-item-name">${item.label}</span>
-          <span class="shop-item-desc">${item.desc}</span>
-          <span class="shop-item-owned">In bag: ${owned}</span>
+        <div class="shop-item-icon" aria-hidden="true">${item.icon}</div>
+        <div class="shop-item-body">
+          <div class="shop-item-head">
+            <span class="shop-item-name">${item.label}</span>
+            <span class="shop-item-owned">×${owned}</span>
+          </div>
+          <p class="shop-item-desc">${item.desc}</p>
+          <button class="shop-buy-btn ${canAfford ? '' : 'disabled'}" type="button">
+            <span class="shop-price-coin">●</span> ${item.price}
+          </button>
         </div>
-        <button class="shop-buy-btn ${canAfford ? '' : 'disabled'}" type="button">
-          🪙 ${item.price}
-        </button>
       `;
       const btn = el.querySelector('.shop-buy-btn');
       btn.addEventListener('click', () => {
@@ -298,8 +302,12 @@ const Game = (() => {
 
   function buildLevelMap() {
     const map = $('level-map') || $('level-grid');
-    const data = ensureProgress();
-    if (!map || typeof LEVELS === 'undefined') return;
+    const prog = ensureProgress();
+    if (!map) return;
+    if (typeof LEVELS === 'undefined' || !LEVELS.length) {
+      map.innerHTML = '<p class="map-error">Levels could not load. Refresh the page.</p>';
+      return;
+    }
 
     try {
     map.innerHTML = '<div class="map-sky"></div><div class="map-ground"></div>';
@@ -309,11 +317,11 @@ const Game = (() => {
 
     LEVELS.forEach((_, i) => {
       const num = i + 1;
-      const data = STATION_DATA[i] || STATION_DATA[0];
+      const stationData = STATION_DATA[i] || STATION_DATA[0];
       const side = i % 2 === 0 ? 'left' : 'right';
-      const unlocked = num <= data.maxLevel;
-      const stars = data.stars[num] || 0;
-      const isCurrent = num === data.maxLevel;
+      const unlocked = num <= prog.maxLevel;
+      const stars = prog.stars[num] || 0;
+      const isCurrent = num === prog.maxLevel;
 
       if (i > 0) {
         const rail = document.createElement('div');
@@ -322,13 +330,13 @@ const Game = (() => {
         track.appendChild(rail);
       }
 
-      const station = document.createElement('div');
-      station.className = `map-station ${side} ${unlocked ? 'unlocked' : 'locked'} ${isCurrent ? 'current' : ''} ${stars > 0 ? 'completed' : ''}`;
-      station.dataset.level = num;
-      station.innerHTML = `
-        <div class="station-scenery" style="--station-color:${data.color}">
+      const stationEl = document.createElement('div');
+      stationEl.className = `map-station ${side} ${unlocked ? 'unlocked' : 'locked'} ${isCurrent ? 'current' : ''} ${stars > 0 ? 'completed' : ''}`;
+      stationEl.dataset.level = num;
+      stationEl.innerHTML = `
+        <div class="station-scenery" style="--station-color:${stationData.color}">
           <span class="scenery-dot"></span>
-          <span class="scenery-name">${data.name}</span>
+          <span class="scenery-name">${stationData.name}</span>
         </div>
         <button class="station-btn" type="button" ${unlocked ? '' : 'disabled'}>
           <span class="station-num">${num}</span>
@@ -338,12 +346,12 @@ const Game = (() => {
       `;
 
       if (unlocked) {
-        station.querySelector('.station-btn').addEventListener('click', () => {
+        stationEl.querySelector('.station-btn').addEventListener('click', () => {
           AudioEngine.click();
           startLevel(num);
         });
       }
-      track.appendChild(station);
+      track.appendChild(stationEl);
     });
 
     map.appendChild(track);
@@ -761,13 +769,13 @@ const Game = (() => {
   function updateMuteButton() {
     const btn = $('mute-btn');
     if (btn) {
-      btn.textContent = AudioEngine.isEnabled() ? '🔊' : '🔇';
-      btn.classList.toggle('muted', !AudioEngine.isEnabled());
+      btn.dataset.on = AudioEngine.isEnabled() ? 'true' : 'false';
+      btn.setAttribute('aria-pressed', AudioEngine.isEnabled() ? 'false' : 'true');
     }
     const musicBtn = $('music-btn');
     if (musicBtn) {
-      musicBtn.textContent = AudioEngine.isMusicEnabled() ? '🎵' : '🔕';
-      musicBtn.classList.toggle('muted', !AudioEngine.isMusicEnabled());
+      musicBtn.dataset.on = AudioEngine.isMusicEnabled() ? 'true' : 'false';
+      musicBtn.setAttribute('aria-pressed', AudioEngine.isMusicEnabled() ? 'false' : 'true');
     }
   }
 
@@ -812,8 +820,6 @@ const Game = (() => {
 
     $('play-btn')?.addEventListener('click', () => {
       AudioEngine.init();
-      if (!AudioEngine.isMusicEnabled()) AudioEngine.setMusicEnabled(true);
-      updateMuteButton();
       startLevel(AuthManager.getPlayLevel(progress));
     });
 
@@ -914,6 +920,28 @@ const Game = (() => {
         sel?.addRange(range);
       }
       showToast('Link selected — long-press to copy');
+    });
+
+    $('invite-link')?.addEventListener('click', async (e) => {
+      e.preventDefault();
+      const text = `${MTEPOP_CONFIG.inviteMessage}\n${getInviteUrl()}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: MTEPOP_CONFIG.appName, text: MTEPOP_CONFIG.inviteMessage, url: getInviteUrl() });
+          showToast('Invite shared!');
+          return;
+        } catch (err) {
+          if (err?.name === 'AbortError') return;
+        }
+      }
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          showToast('Link copied!');
+        }
+      } catch {
+        showToast('Long-press the link to copy');
+      }
     });
 
     $('invite-share-btn')?.addEventListener('click', async () => {
