@@ -246,13 +246,14 @@ const Game = (() => {
         <div class="shop-item-body">
           <div class="shop-item-head">
             <span class="shop-item-name">${item.label}</span>
-            <span class="shop-item-owned">×${owned}</span>
+            <span class="shop-item-owned">In bag: ${owned}</span>
           </div>
           <p class="shop-item-desc">${item.desc}</p>
-          <button class="shop-buy-btn ${canAfford ? '' : 'disabled'}" type="button">
-            <span class="shop-price-coin">●</span> ${item.price}
-          </button>
         </div>
+        <button class="shop-buy-btn ${canAfford ? '' : 'disabled'}" type="button">
+          <span class="coin-badge coin-badge-sm" aria-hidden="true"></span>
+          <span>${item.price}</span>
+        </button>
       `;
       const btn = el.querySelector('.shop-buy-btn');
       btn.addEventListener('click', () => {
