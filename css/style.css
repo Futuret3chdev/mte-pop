@@ -112,23 +112,25 @@ body {
   filter: drop-shadow(0 6px 0 var(--shadow));
 }
 
-.logo-toon {
-  font-size: 3.5rem;
+.logo-mte {
+  font-size: 3.2rem;
   font-weight: 700;
   color: #fff;
   text-shadow: 3px 3px 0 var(--blue-dark), -1px -1px 0 rgba(0,0,0,0.2);
-  letter-spacing: 4px;
+  letter-spacing: 12px;
+  padding-left: 12px;
 }
 
-.logo-blast {
-  font-size: 4.5rem;
+.logo-pop {
+  font-size: 5rem;
   font-weight: 700;
   background: linear-gradient(180deg, #ffeaa7 0%, #fdcb6e 40%, #f39c12 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   filter: drop-shadow(2px 4px 0 var(--shadow));
-  letter-spacing: 2px;
+  letter-spacing: 8px;
+  padding-left: 8px;
 }
 
 .tagline {
@@ -1186,8 +1188,8 @@ body {
 
 /* ── Mobile responsive ── */
 @media (max-width: 380px) {
-  .logo-toon { font-size: 2.8rem; letter-spacing: 2px; }
-  .logo-blast { font-size: 3.6rem; }
+  .logo-mte { font-size: 2.6rem; letter-spacing: 8px; }
+  .logo-pop { font-size: 3.8rem; letter-spacing: 6px; }
   .btn-primary, .btn-secondary { min-width: 100%; max-width: 280px; font-size: 1.05rem; }
   .menu-stats { gap: 1rem; font-size: 0.85rem; flex-wrap: wrap; justify-content: center; }
   .brand-credits { font-size: 0.55rem; letter-spacing: 1px; }
@@ -1202,8 +1204,8 @@ body {
 
 @media (max-height: 700px) {
   .menu-content { gap: 0.8rem; justify-content: flex-start; padding-top: calc(1rem + var(--safe-top)); }
-  .logo-toon { font-size: 2.5rem; }
-  .logo-blast { font-size: 3.2rem; }
+  .logo-mte { font-size: 2.2rem; letter-spacing: 6px; }
+  .logo-pop { font-size: 3rem; letter-spacing: 5px; }
   .tagline { margin-bottom: 0.3rem; font-size: 0.9rem; }
   .brand-footer { margin-top: 1rem; }
   .btn-primary, .btn-secondary { padding: 0.75rem 2rem; }
