@@ -37,11 +37,7 @@
         </div>
       </div>
       <div class="menu-content">
-        <div class="logo">
-          <span class="logo-mte">MTE</span>
-          <span class="logo-pop">POP</span>
-        </div>
-        <p class="tagline">Tap matching blocks to pop!</p>
+        <p class="tagline menu-title">Tap matching blocks to pop!</p>
 
         <button id="play-btn" class="btn-primary" type="button">▶ Play Level <span id="menu-level">1</span></button>
         <button id="level-select-btn" class="btn-secondary" type="button">🗺 Level Map</button>
@@ -138,16 +134,16 @@
           <span id="moves-count" class="moves-value">20</span>
         </div>
       </div>
-      <div id="goals-panel" class="goals-panel"></div>
-      <div class="board-wrapper">
-        <div id="board" class="board"></div>
-        <canvas id="particles"></canvas>
-      </div>
       <div id="inventory-bar" class="inventory-bar">
         <button id="inv-bomb" class="inv-btn" type="button" title="Bomb"><span class="inv-icon">💣</span><span id="inv-bomb-count" class="inv-count">0</span></button>
         <button id="inv-rocket" class="inv-btn" type="button" title="Rocket"><span class="inv-icon">🚀</span><span id="inv-rocket-count" class="inv-count">0</span></button>
         <button id="inv-disco" class="inv-btn" type="button" title="Disco"><span class="inv-icon">🪩</span><span id="inv-disco-count" class="inv-count">0</span></button>
         <button id="inv-moves" class="inv-btn" type="button" title="+5 Moves"><span class="inv-icon">⚡</span><span id="inv-moves-count" class="inv-count">0</span></button>
+      </div>
+      <div id="goals-panel" class="goals-panel"></div>
+      <div class="board-wrapper">
+        <div id="board" class="board"></div>
+        <canvas id="particles"></canvas>
       </div>
       <div id="combo-display" class="combo-display hidden"><span id="combo-text">COMBO x2</span></div>
       <div id="score-display" class="score-display">Score: <span id="score-value">0</span></div>
@@ -159,9 +155,9 @@
         <h2>Level Complete!</h2>
         <p class="modal-score">Score: <span id="win-score">0</span></p>
         <p class="modal-coins" id="win-coins">+50 coins</p>
-        <button id="next-level-btn" class="btn-primary">Next Level</button>
-        <button id="invite-win-btn" class="btn-secondary">Invite Friends</button>
-        <button id="win-menu-btn" class="btn-secondary">Menu</button>
+        <button id="next-level-btn" class="btn-primary" type="button">Next Level</button>
+        <button id="invite-win-btn" class="btn-secondary" type="button">Invite Friends</button>
+        <button id="win-menu-btn" class="btn-secondary" type="button">Menu</button>
       </div>
     </div>
 
