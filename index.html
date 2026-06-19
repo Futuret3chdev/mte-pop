@@ -16,6 +16,7 @@
     <!-- Main Menu -->
     <div id="menu-screen" class="screen active">
       <div class="menu-bg"></div>
+      <button id="mute-btn" class="btn-mute" title="Toggle sound">🔊</button>
       <div class="menu-content">
         <div class="logo">
           <span class="logo-toon">TOON</span>
@@ -24,11 +25,28 @@
         <p class="tagline">Tap matching blocks to blast!</p>
         <button id="play-btn" class="btn-primary">▶ Play Level <span id="menu-level">1</span></button>
         <button id="level-select-btn" class="btn-secondary">🗺 Level Map</button>
+        <button id="shop-btn" class="btn-secondary">🛒 Shop</button>
         <div class="menu-stats">
           <div class="stat"><span class="stat-icon">⭐</span><span id="total-stars">0</span> Stars</div>
           <div class="stat"><span class="stat-icon">🏆</span>Level <span id="max-level">1</span></div>
+          <div class="stat"><span class="stat-icon">🪙</span><span id="menu-coins">500</span></div>
         </div>
+        <footer class="brand-footer">
+          <span class="brand-ecosystem">MTECOSYSTEM</span>
+          <span class="brand-credits">MADE BY FUTURET3CH AND MEMETORRENT</span>
+        </footer>
       </div>
+    </div>
+
+    <!-- Shop -->
+    <div id="shop-screen" class="screen">
+      <div class="screen-header">
+        <button class="btn-back" id="shop-back">←</button>
+        <h2>Power-Up Shop</h2>
+        <div class="shop-coins-display">🪙 <span id="shop-coins">500</span></div>
+      </div>
+      <div id="shop-items" class="shop-list"></div>
+      <p class="shop-hint">Buy power-ups here, then use them during levels from the toolbar below the board.</p>
     </div>
 
     <!-- Level Select -->
@@ -58,6 +76,25 @@
         <canvas id="particles"></canvas>
       </div>
 
+      <div id="inventory-bar" class="inventory-bar">
+        <button id="inv-bomb" class="inv-btn" title="Place bomb on a block">
+          <span class="inv-icon">💣</span>
+          <span id="inv-bomb-count" class="inv-count">0</span>
+        </button>
+        <button id="inv-rocket" class="inv-btn" title="Place rocket on a block">
+          <span class="inv-icon">🚀</span>
+          <span id="inv-rocket-count" class="inv-count">0</span>
+        </button>
+        <button id="inv-disco" class="inv-btn" title="Place disco on a block">
+          <span class="inv-icon">🪩</span>
+          <span id="inv-disco-count" class="inv-count">0</span>
+        </button>
+        <button id="inv-moves" class="inv-btn" title="Add 5 moves">
+          <span class="inv-icon">⚡</span>
+          <span id="inv-moves-count" class="inv-count">0</span>
+        </button>
+      </div>
+
       <div id="combo-display" class="combo-display hidden">
         <span id="combo-text">COMBO x2</span>
       </div>
@@ -73,6 +110,7 @@
         <div class="modal-stars" id="win-stars">⭐⭐⭐</div>
         <h2>Level Complete!</h2>
         <p class="modal-score">Score: <span id="win-score">0</span></p>
+        <p class="modal-coins" id="win-coins">+50 🪙</p>
         <button id="next-level-btn" class="btn-primary">Next Level →</button>
         <button id="win-menu-btn" class="btn-secondary">Menu</button>
       </div>
