@@ -1817,11 +1817,13 @@ body {
   margin-bottom: 0.8rem;
 }
 
-#profile-screen {
+#settings-screen {
   display: none;
   flex-direction: column;
+  min-height: 100%;
+  min-height: 100dvh;
 }
 
-#profile-screen.active {
+#settings-screen.active {
   display: flex;
 }
