@@ -74,7 +74,13 @@ const Game = (() => {
 
     $('logout-btn')?.classList.toggle('hidden', !loggedIn);
 
-    const providerLabels = { google: 'Google', facebook: 'Facebook', x: 'X' };
+    const providerLabels = {
+      google: 'Google',
+      facebook: 'Facebook',
+      x: 'X',
+      discord: 'Discord',
+      telegram: 'Telegram'
+    };
     const avatarColor = AuthManager.avatarColor(prof.avatar);
     if ($('profile-name')) $('profile-name').textContent = prof.name;
     if ($('profile-avatar')) {
@@ -153,6 +159,25 @@ const Game = (() => {
     updateAuthUI();
     updateInviteSection();
     AuthManager.renderGoogleButton($('google-btn-container'));
+    AuthManager.renderTelegramWidget($('telegram-login-container'));
+  }
+
+  async function handleAuthResult(result, providerLabel) {
+    if (result?.pending) return;
+    if (result?.needsHandle) {
+      $('x-username-input').value = '';
+      $('x-login-modal')?.classList.remove('hidden');
+      return;
+    }
+    if (result?.error === 'Cancelled') return;
+    if (result?.ok) {
+      reloadProgress();
+      updateAuthUI();
+      showToast(`Signed in with ${providerLabel}`);
+      showScreen('menu');
+      return;
+    }
+    if (result?.error) showToast(result.error);
   }
 
   function openLevelMap() {
@@ -816,6 +841,7 @@ const Game = (() => {
     document.addEventListener('mtepop:authchange', () => {
       reloadProgress();
       renderProfilePickers();
+      updateAuthUI();
       if ($('level-screen')?.classList.contains('active')) buildLevelMap();
     });
 
@@ -846,44 +872,45 @@ const Game = (() => {
     });
 
     $('settings-back')?.addEventListener('click', () => showScreen('menu'));
-    $('login-google')?.addEventListener('click', () => {
-      if (AuthManager.signInGoogle()) {
-        reloadProgress();
-        updateAuthUI();
-        showToast('Signed in with Google');
-        showScreen('menu');
-      }
+    $('login-google')?.addEventListener('click', async () => {
+      const result = await AuthManager.signInGoogle();
+      await handleAuthResult(result, 'Google');
     });
 
     $('login-facebook')?.addEventListener('click', async () => {
-      const ok = await AuthManager.signInFacebook();
-      if (ok) {
-        reloadProgress();
-        updateAuthUI();
-        showToast('Signed in with Facebook');
-        showScreen('menu');
-      }
+      const result = await AuthManager.signInFacebook();
+      await handleAuthResult(result, 'Facebook');
     });
 
-    $('login-x')?.addEventListener('click', () => {
-      $('x-username-input').value = '';
-      $('x-login-modal').classList.remove('hidden');
+    $('login-x')?.addEventListener('click', async () => {
+      const result = await AuthManager.signInXOAuth();
+      await handleAuthResult(result, 'X');
+    });
+
+    $('login-discord')?.addEventListener('click', async () => {
+      const result = await AuthManager.signInDiscord();
+      await handleAuthResult(result, 'Discord');
+    });
+
+    document.addEventListener('mtepop:telegramauth', () => {
+      reloadProgress();
+      updateAuthUI();
+      showToast('Signed in with Telegram');
+      showScreen('menu');
     });
 
     $('x-login-cancel')?.addEventListener('click', () => {
       $('x-login-modal').classList.add('hidden');
     });
 
-    $('x-login-confirm')?.addEventListener('click', () => {
+    $('x-login-confirm')?.addEventListener('click', async () => {
       const handle = $('x-username-input')?.value?.trim();
-      if (AuthManager.signInX(handle)) {
-        $('x-login-modal').classList.add('hidden');
-        reloadProgress();
-        updateAuthUI();
-        showToast('Signed in with X');
-        showScreen('menu');
+      const result = AuthManager.signInXHandle(handle);
+      if (result?.ok) {
+        $('x-login-modal')?.classList.add('hidden');
+        await handleAuthResult(result, 'X');
       } else {
-        showToast('Enter a username');
+        showToast(result?.error || 'Enter a username');
       }
     });
 
