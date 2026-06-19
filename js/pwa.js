@@ -1,6 +1,7 @@
 const PWA = (() => {
   const $ = id => document.getElementById(id);
   let deferredPrompt = null;
+  let installShown = false;
 
   function isStandalone() {
     return window.matchMedia('(display-mode: standalone)').matches
@@ -25,18 +26,24 @@ const PWA = (() => {
   }
 
   async function install() {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      deferredPrompt = null;
-      hide($('install-banner'));
-      return outcome === 'accepted';
-    }
-    if (isIOS()) {
-      show($('ios-install-hint'));
+    if (!deferredPrompt) {
+      if (isIOS()) show($('ios-install-hint'));
       return false;
     }
-    return false;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    hide($('install-banner'));
+    installShown = true;
+    return outcome === 'accepted';
+  }
+
+  function maybeAutoInstall() {
+    if (installShown || isStandalone() || !deferredPrompt) return;
+    if (isAndroid()) {
+      installShown = true;
+      setTimeout(() => install(), 1200);
+    }
   }
 
   function init() {
@@ -47,7 +54,7 @@ const PWA = (() => {
     window.addEventListener('beforeinstallprompt', (e) => {
       e.preventDefault();
       deferredPrompt = e;
-      if (!isStandalone()) show($('install-banner'));
+      maybeAutoInstall();
     });
 
     $('install-btn')?.addEventListener('click', () => install());
@@ -57,13 +64,12 @@ const PWA = (() => {
     if (isStandalone()) {
       hide($('install-banner'));
       hide($('ios-install-hint'));
-    } else if (isIOS()) {
-      setTimeout(() => show($('ios-install-hint')), 2000);
     }
 
     window.addEventListener('appinstalled', () => {
       hide($('install-banner'));
       deferredPrompt = null;
+      installShown = true;
     });
   }
 
