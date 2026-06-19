@@ -148,6 +148,8 @@ const Game = (() => {
   function showInviteModal() {
     const url = getInviteUrl();
     if ($('invite-url')) $('invite-url').textContent = url;
+    const shareBtn = $('invite-share-btn');
+    if (shareBtn) shareBtn.style.display = navigator.share ? '' : 'none';
     $('invite-modal')?.classList.remove('hidden');
   }
 
@@ -728,21 +730,9 @@ const Game = (() => {
     }
   }
 
-  async function handleInvite() {
+  function handleInvite() {
     AudioEngine.init();
     AudioEngine.click();
-    if (navigator.share) {
-      try {
-        const result = await AuthManager.inviteFriends();
-        showToast(result?.message || 'Invite shared!');
-        return;
-      } catch (err) {
-        if (err?.name === 'AbortError') {
-          showToast('Share cancelled');
-          return;
-        }
-      }
-    }
     showInviteModal();
   }
 
@@ -866,36 +856,44 @@ const Game = (() => {
       updateAuthUI();
     });
 
+    $('invite-btn')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleInvite();
+    });
+
+    $('invite-win-btn')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      handleInvite();
+    });
+
     $('invite-copy-btn')?.addEventListener('click', async () => {
       const text = `${MTEPOP_CONFIG.inviteMessage}\n${getInviteUrl()}`;
       try {
         if (navigator.clipboard?.writeText) {
           await navigator.clipboard.writeText(text);
           showToast('Invite link copied!');
-        } else {
-          showToast('Copy the link shown above');
+          return;
         }
-      } catch {
-        showToast('Copy the link shown above');
+      } catch { /* fallback below */ }
+      const urlEl = $('invite-url');
+      if (urlEl) {
+        const range = document.createRange();
+        range.selectNodeContents(urlEl);
+        const sel = window.getSelection();
+        sel?.removeAllRanges();
+        sel?.addRange(range);
       }
+      showToast('Link selected — tap Copy or long-press to copy');
     });
 
     $('invite-share-btn')?.addEventListener('click', async () => {
-      if (!navigator.share) {
-        showToast('Sharing not supported — use Copy Link');
-        return;
-      }
       try {
-        const url = getInviteUrl();
-        await navigator.share({
-          title: MTEPOP_CONFIG.appName,
-          text: MTEPOP_CONFIG.inviteMessage,
-          url
-        });
+        const result = await AuthManager.inviteFriends();
+        if (result?.message === 'Share cancelled') return;
         $('invite-modal')?.classList.add('hidden');
-        showToast('Invite shared!');
-      } catch (err) {
-        if (err?.name !== 'AbortError') showToast('Could not open share menu');
+        showToast(result?.message || 'Invite shared!');
+      } catch {
+        showToast('Could not share — use Copy Link');
       }
     });
 
