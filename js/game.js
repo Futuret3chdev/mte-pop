@@ -23,15 +23,28 @@ const Game = (() => {
   let currentLevel = 1;
   let placementMode = null;
   let progress = null;
+  let uiReady = false;
 
   const $ = id => document.getElementById(id);
-  const screens = {
-    menu: $('menu-screen'),
-    level: $('level-screen'),
-    game: $('game-screen'),
-    shop: $('shop-screen'),
-    profile: $('profile-screen')
+
+  const SCREEN_IDS = {
+    menu: 'menu-screen',
+    level: 'level-screen',
+    game: 'game-screen',
+    shop: 'shop-screen',
+    settings: 'settings-screen'
   };
+
+  function ensureProgress() {
+    if (!progress) {
+      try {
+        progress = AuthManager.loadProgress();
+      } catch {
+        progress = { ...AuthManager.DEFAULT_PROGRESS };
+      }
+    }
+    return progress;
+  }
 
   const boardEl = $('board');
   const particlesCanvas = $('particles');
@@ -118,27 +131,40 @@ const Game = (() => {
   }
 
   function showScreen(name) {
-    const targetId = `${name}-screen`;
+    const targetId = SCREEN_IDS[name] || `${name}-screen`;
     document.querySelectorAll('#app > .screen').forEach(s => {
       s.classList.toggle('active', s.id === targetId);
     });
     if (name !== 'game') clearPlacementMode();
-    if (name === 'shop') renderShop();
-    if (name === 'level') buildLevelMap();
-    if (progress) updateMenuStats();
+
+    try {
+      if (name === 'shop') renderShop();
+      if (name === 'level') buildLevelMap();
+      if (name === 'settings') refreshSettings();
+      ensureProgress();
+      updateMenuStats();
+    } catch (err) {
+      console.error(`Screen "${name}" render failed:`, err);
+    }
+  }
+
+  function refreshSettings() {
+    renderProfilePickers();
+    updateAuthUI();
+    updateInviteSection();
+    AuthManager.renderGoogleButton($('google-btn-container'));
   }
 
   function openLevelMap() {
     AudioEngine.init();
     AudioEngine.click();
-    try {
-      showScreen('level');
-    } catch (err) {
-      console.error('Map open failed:', err);
-      document.querySelectorAll('#app > .screen').forEach(s => s.classList.remove('active'));
-      $('level-screen')?.classList.add('active');
-      buildLevelMap();
-    }
+    showScreen('level');
+  }
+
+  function openShop() {
+    AudioEngine.init();
+    AudioEngine.click();
+    showScreen('shop');
   }
 
   function getInviteUrl() {
@@ -162,11 +188,7 @@ const Game = (() => {
   function openSettings(scrollToInvite = false) {
     AudioEngine.init();
     AudioEngine.click();
-    renderProfilePickers();
-    updateAuthUI();
-    updateInviteSection();
-    AuthManager.renderGoogleButton($('google-btn-container'));
-    showScreen('profile');
+    showScreen('settings');
     if (scrollToInvite) {
       requestAnimationFrame(() => {
         $('invite-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -181,6 +203,7 @@ const Game = (() => {
   }
 
   function updateMenuStats() {
+    if (!progress) return;
     const playLevel = AuthManager.getPlayLevel(progress);
     if ($('menu-level')) $('menu-level').textContent = playLevel;
     if ($('max-level')) $('max-level').textContent = progress.maxLevel;
@@ -206,12 +229,13 @@ const Game = (() => {
   function renderShop() {
     const list = $('shop-items');
     if (!list) return;
+    const data = ensureProgress();
     list.innerHTML = '';
 
     SHOP_ITEMS.forEach(item => {
       const invKey = item.type === 'rocket_h' ? 'rocket_h' : item.id === 'extra_moves' ? 'extra_moves' : item.type;
-      const owned = (progress.inventory && progress.inventory[invKey]) || 0;
-      const canAfford = progress.coins >= item.price;
+      const owned = (data.inventory && data.inventory[invKey]) || 0;
+      const canAfford = data.coins >= item.price;
 
       const el = document.createElement('div');
       el.className = 'shop-item';
@@ -274,7 +298,8 @@ const Game = (() => {
 
   function buildLevelMap() {
     const map = $('level-map') || $('level-grid');
-    if (!map || typeof LEVELS === 'undefined' || !progress) return;
+    const data = ensureProgress();
+    if (!map || typeof LEVELS === 'undefined') return;
 
     try {
     map.innerHTML = '<div class="map-sky"></div><div class="map-ground"></div>';
@@ -286,9 +311,9 @@ const Game = (() => {
       const num = i + 1;
       const data = STATION_DATA[i] || STATION_DATA[0];
       const side = i % 2 === 0 ? 'left' : 'right';
-      const unlocked = num <= progress.maxLevel;
-      const stars = progress.stars[num] || 0;
-      const isCurrent = num === progress.maxLevel;
+      const unlocked = num <= data.maxLevel;
+      const stars = data.stars[num] || 0;
+      const isCurrent = num === data.maxLevel;
 
       if (i > 0) {
         const rail = document.createElement('div');
@@ -748,22 +773,36 @@ const Game = (() => {
 
   function onAppClick(e) {
     const btn = e.target.closest('button');
-    if (!btn) return;
-    if (btn.id === 'level-select-btn') {
-      e.preventDefault();
-      openLevelMap();
-    } else if (btn.id === 'settings-btn' || btn.id === 'profile-btn') {
-      e.preventDefault();
-      openSettings();
-    } else if (btn.id === 'invite-win-btn') {
-      e.preventDefault();
-      $('win-modal')?.classList.add('hidden');
-      openSettings(true);
+    if (!btn || !uiReady) return;
+
+    switch (btn.id) {
+      case 'level-select-btn':
+        e.preventDefault();
+        openLevelMap();
+        break;
+      case 'shop-btn':
+        e.preventDefault();
+        openShop();
+        break;
+      case 'settings-btn':
+      case 'profile-btn':
+        e.preventDefault();
+        openSettings();
+        break;
+      case 'invite-win-btn':
+        e.preventDefault();
+        $('win-modal')?.classList.add('hidden');
+        openSettings(true);
+        break;
+      default:
+        break;
     }
   }
 
   function bindUI() {
-    $('app')?.addEventListener('click', onAppClick);
+    if (uiReady) return;
+    uiReady = true;
+    $('app')?.addEventListener('click', onAppClick, { passive: false });
 
     document.addEventListener('mtepop:authchange', () => {
       reloadProgress();
@@ -776,12 +815,6 @@ const Game = (() => {
       if (!AudioEngine.isMusicEnabled()) AudioEngine.setMusicEnabled(true);
       updateMuteButton();
       startLevel(AuthManager.getPlayLevel(progress));
-    });
-
-    $('shop-btn')?.addEventListener('click', () => {
-      AudioEngine.init();
-      renderShop();
-      showScreen('shop');
     });
 
     $('shop-back')?.addEventListener('click', () => showScreen('menu'));
@@ -805,10 +838,7 @@ const Game = (() => {
       AudioEngine.click();
     });
 
-    $('profile-btn')?.addEventListener('click', () => openSettings());
-    $('settings-btn')?.addEventListener('click', () => openSettings());
-
-    $('profile-back')?.addEventListener('click', () => showScreen('menu'));
+    $('settings-back')?.addEventListener('click', () => showScreen('menu'));
     $('login-google')?.addEventListener('click', () => {
       if (AuthManager.signInGoogle()) {
         reloadProgress();
@@ -936,17 +966,17 @@ const Game = (() => {
   }
 
   function init() {
-    bindUI();
-
     try {
       AuthManager.init();
       PWA.init();
       progress = AuthManager.loadProgress();
-      reloadProgress();
     } catch (err) {
       console.error('Startup failed:', err);
-      progress = progress || AuthManager.DEFAULT_PROGRESS;
+      progress = { ...AuthManager.DEFAULT_PROGRESS };
     }
+
+    bindUI();
+    reloadProgress();
 
     try {
       ParticleSystem.init(particlesCanvas);
