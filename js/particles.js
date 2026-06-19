@@ -1,6 +1,7 @@
 const ParticleSystem = (() => {
   let canvas, ctx;
   let particles = [];
+  let shockwaves = [];
   let animating = false;
 
   function init(canvasEl) {
@@ -11,6 +12,7 @@ const ParticleSystem = (() => {
   }
 
   function resize() {
+    if (!canvas) return;
     const wrapper = canvas.parentElement;
     const rect = wrapper.getBoundingClientRect();
     canvas.width = rect.width * devicePixelRatio;
@@ -23,32 +25,55 @@ const ParticleSystem = (() => {
   function burst(x, y, color, count = 12) {
     for (let i = 0; i < count; i++) {
       const angle = (Math.PI * 2 * i) / count + Math.random() * 0.5;
-      const speed = 2 + Math.random() * 4;
+      const speed = 2 + Math.random() * 5;
       particles.push({
         x, y,
         vx: Math.cos(angle) * speed,
         vy: Math.sin(angle) * speed - 2,
         life: 1,
-        decay: 0.02 + Math.random() * 0.02,
-        size: 4 + Math.random() * 6,
+        decay: 0.025 + Math.random() * 0.02,
+        size: 4 + Math.random() * 7,
         color,
-        gravity: 0.15
+        gravity: 0.12
       });
     }
     startLoop();
   }
 
-  function sparkle(x, y) {
-    for (let i = 0; i < 20; i++) {
+  function shockwave(x, y, color = '#ffeaa7', maxRadius = 120) {
+    shockwaves.push({ x, y, radius: 8, maxRadius, life: 1, color });
+    startLoop();
+  }
+
+  function rocketTrail(x, y, horizontal) {
+    const count = 16;
+    for (let i = 0; i < count; i++) {
       particles.push({
-        x: x + (Math.random() - 0.5) * 30,
-        y: y + (Math.random() - 0.5) * 30,
-        vx: (Math.random() - 0.5) * 6,
-        vy: (Math.random() - 0.5) * 6,
+        x: x + (horizontal ? (Math.random() - 0.5) * 20 : 0),
+        y: y + (horizontal ? 0 : (Math.random() - 0.5) * 20),
+        vx: horizontal ? (Math.random() > 0.5 ? 8 : -8) : 0,
+        vy: horizontal ? 0 : (Math.random() > 0.5 ? 8 : -8),
         life: 1,
-        decay: 0.015 + Math.random() * 0.01,
-        size: 2 + Math.random() * 4,
-        color: `hsl(${Math.random() * 60 + 40}, 100%, 70%)`,
+        decay: 0.04,
+        size: 6 + Math.random() * 8,
+        color: `hsl(${35 + Math.random() * 20}, 100%, 65%)`,
+        gravity: 0
+      });
+    }
+    startLoop();
+  }
+
+  function discoBurst(x, y) {
+    for (let i = 0; i < 24; i++) {
+      const hue = Math.random() * 360;
+      particles.push({
+        x, y,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10,
+        life: 1,
+        decay: 0.02,
+        size: 5 + Math.random() * 6,
+        color: `hsl(${hue}, 90%, 65%)`,
         gravity: 0.05,
         star: true
       });
@@ -64,7 +89,25 @@ const ParticleSystem = (() => {
   }
 
   function tick() {
-    ctx.clearRect(0, 0, canvas.width / devicePixelRatio, canvas.height / devicePixelRatio);
+    const w = canvas.width / devicePixelRatio;
+    const h = canvas.height / devicePixelRatio;
+    ctx.clearRect(0, 0, w, h);
+
+    for (let i = shockwaves.length - 1; i >= 0; i--) {
+      const s = shockwaves[i];
+      s.radius += 6;
+      s.life -= 0.04;
+      if (s.life <= 0 || s.radius > s.maxRadius) {
+        shockwaves.splice(i, 1);
+        continue;
+      }
+      ctx.globalAlpha = s.life * 0.6;
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 4 * s.life;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
 
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
@@ -72,7 +115,7 @@ const ParticleSystem = (() => {
       p.y += p.vy;
       p.vy += p.gravity;
       p.life -= p.decay;
-      p.vx *= 0.98;
+      p.vx *= 0.97;
 
       if (p.life <= 0) {
         particles.splice(i, 1);
@@ -81,9 +124,8 @@ const ParticleSystem = (() => {
 
       ctx.globalAlpha = p.life;
       ctx.fillStyle = p.color;
-      if (p.star) {
-        drawStar(p.x, p.y, p.size);
-      } else {
+      if (p.star) drawStar(p.x, p.y, p.size);
+      else {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
         ctx.fill();
@@ -91,7 +133,7 @@ const ParticleSystem = (() => {
     }
     ctx.globalAlpha = 1;
 
-    if (particles.length > 0) {
+    if (particles.length > 0 || shockwaves.length > 0) {
       requestAnimationFrame(tick);
     } else {
       animating = false;
@@ -126,11 +168,24 @@ const ParticleSystem = (() => {
     const offset = getBoardOffset(boardEl);
     const cellSize = parseFloat(getComputedStyle(boardEl).getPropertyValue('--cell-size')) || 42;
     const gap = 3;
-    const pad = 6;
+    const pad = 8;
     const x = offset.left + pad + col * (cellSize + gap) + cellSize / 2;
     const y = offset.top + pad + row * (cellSize + gap) + cellSize / 2;
     burst(x, y, color);
   }
 
-  return { init, burst, sparkle, burstAtCell, resize };
+  function shockwaveAtCell(boardEl, row, col, color, scale = 1) {
+    const offset = getBoardOffset(boardEl);
+    const cellSize = parseFloat(getComputedStyle(boardEl).getPropertyValue('--cell-size')) || 42;
+    const gap = 3;
+    const pad = 8;
+    const x = offset.left + pad + col * (cellSize + gap) + cellSize / 2;
+    const y = offset.top + pad + row * (cellSize + gap) + cellSize / 2;
+    shockwave(x, y, color, cellSize * 5 * scale);
+  }
+
+  return {
+    init, burst, shockwave, rocketTrail, discoBurst,
+    burstAtCell, shockwaveAtCell, resize
+  };
 })();
