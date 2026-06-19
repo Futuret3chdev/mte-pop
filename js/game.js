@@ -142,15 +142,36 @@ const Game = (() => {
   }
 
   function getInviteUrl() {
+    if (window.location.origin && window.location.origin !== 'null') {
+      return window.location.origin + window.location.pathname;
+    }
     return MTEPOP_CONFIG.appUrl || window.location.href;
   }
 
-  function showInviteModal() {
+  function updateInviteSection() {
     const url = getInviteUrl();
-    if ($('invite-url')) $('invite-url').textContent = url;
+    const link = $('invite-link');
+    if (link) {
+      link.href = url;
+      link.textContent = url;
+    }
     const shareBtn = $('invite-share-btn');
     if (shareBtn) shareBtn.style.display = navigator.share ? '' : 'none';
-    $('invite-modal')?.classList.remove('hidden');
+  }
+
+  function openSettings(scrollToInvite = false) {
+    AudioEngine.init();
+    AudioEngine.click();
+    renderProfilePickers();
+    updateAuthUI();
+    updateInviteSection();
+    AuthManager.renderGoogleButton($('google-btn-container'));
+    showScreen('profile');
+    if (scrollToInvite) {
+      requestAnimationFrame(() => {
+        $('invite-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
   }
 
   function calcStars(movesLeft) {
@@ -712,28 +733,17 @@ const Game = (() => {
     board.resetHintTimer();
   }
 
-  const SVG_MUSIC_ON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>';
-  const SVG_MUSIC_OFF = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 0 0 10 17v-4H6V3h6z"/></svg>';
-  const SVG_SOUND_ON = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.06A4.494 4.494 0 0 0 16.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
-  const SVG_SOUND_OFF = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12A4.494 4.494 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3z"/></svg>';
-
   function updateMuteButton() {
     const btn = $('mute-btn');
     if (btn) {
-      btn.innerHTML = AudioEngine.isEnabled() ? SVG_SOUND_ON : SVG_SOUND_OFF;
+      btn.textContent = AudioEngine.isEnabled() ? '🔊' : '🔇';
       btn.classList.toggle('muted', !AudioEngine.isEnabled());
     }
     const musicBtn = $('music-btn');
     if (musicBtn) {
-      musicBtn.innerHTML = AudioEngine.isMusicEnabled() ? SVG_MUSIC_ON : SVG_MUSIC_OFF;
+      musicBtn.textContent = AudioEngine.isMusicEnabled() ? '🎵' : '🔕';
       musicBtn.classList.toggle('muted', !AudioEngine.isMusicEnabled());
     }
-  }
-
-  function handleInvite() {
-    AudioEngine.init();
-    AudioEngine.click();
-    showInviteModal();
   }
 
   function onAppClick(e) {
@@ -742,9 +752,13 @@ const Game = (() => {
     if (btn.id === 'level-select-btn') {
       e.preventDefault();
       openLevelMap();
-    } else if (btn.id === 'invite-btn' || btn.id === 'invite-win-btn') {
+    } else if (btn.id === 'settings-btn' || btn.id === 'profile-btn') {
       e.preventDefault();
-      handleInvite();
+      openSettings();
+    } else if (btn.id === 'invite-win-btn') {
+      e.preventDefault();
+      $('win-modal')?.classList.add('hidden');
+      openSettings(true);
     }
   }
 
@@ -791,12 +805,8 @@ const Game = (() => {
       AudioEngine.click();
     });
 
-    $('profile-btn')?.addEventListener('click', () => {
-      renderProfilePickers();
-      updateAuthUI();
-      AuthManager.renderGoogleButton($('google-btn-container'));
-      showScreen('profile');
-    });
+    $('profile-btn')?.addEventListener('click', () => openSettings());
+    $('settings-btn')?.addEventListener('click', () => openSettings());
 
     $('profile-back')?.addEventListener('click', () => showScreen('menu'));
     $('login-google')?.addEventListener('click', () => {
@@ -856,16 +866,6 @@ const Game = (() => {
       updateAuthUI();
     });
 
-    $('invite-btn')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      handleInvite();
-    });
-
-    $('invite-win-btn')?.addEventListener('click', (e) => {
-      e.preventDefault();
-      handleInvite();
-    });
-
     $('invite-copy-btn')?.addEventListener('click', async () => {
       const text = `${MTEPOP_CONFIG.inviteMessage}\n${getInviteUrl()}`;
       try {
@@ -875,30 +875,30 @@ const Game = (() => {
           return;
         }
       } catch { /* fallback below */ }
-      const urlEl = $('invite-url');
-      if (urlEl) {
+      const link = $('invite-link');
+      if (link) {
         const range = document.createRange();
-        range.selectNodeContents(urlEl);
+        range.selectNodeContents(link);
         const sel = window.getSelection();
         sel?.removeAllRanges();
         sel?.addRange(range);
       }
-      showToast('Link selected — tap Copy or long-press to copy');
+      showToast('Link selected — long-press to copy');
     });
 
     $('invite-share-btn')?.addEventListener('click', async () => {
       try {
         const result = await AuthManager.inviteFriends();
         if (result?.message === 'Share cancelled') return;
-        $('invite-modal')?.classList.add('hidden');
         showToast(result?.message || 'Invite shared!');
       } catch {
-        showToast('Could not share — use Copy Link');
+        showToast('Could not share — tap the link or use Copy');
       }
     });
 
-    $('invite-close-btn')?.addEventListener('click', () => {
-      $('invite-modal')?.classList.add('hidden');
+    $('invite-win-btn')?.addEventListener('click', () => {
+      $('win-modal')?.classList.add('hidden');
+      openSettings(true);
     });
 
     $('inv-bomb')?.addEventListener('click', () => startPlacement('bomb'));
@@ -957,6 +957,7 @@ const Game = (() => {
     updateMuteButton();
     try { renderShop(); } catch (err) { console.warn('Shop render failed:', err); }
     try { renderProfilePickers(); } catch (err) { console.warn('Profile pickers failed:', err); }
+    try { updateInviteSection(); } catch (err) { console.warn('Invite section failed:', err); }
     updateAuthUI();
 
     if (AudioEngine.isMusicEnabled()) {
