@@ -76,8 +76,8 @@ const Game = (() => {
     boardEl.innerHTML = '';
     const cellSize = calcCellSize(board.width, board.height);
     boardEl.style.setProperty('--cell-size', cellSize + 'px');
-    boardEl.style.gridTemplateColumns = `repeat(${board.width}, 1fr)`;
-    boardEl.style.gridTemplateRows = `repeat(${board.height}, 1fr)`;
+    boardEl.style.gridTemplateColumns = `repeat(${board.width}, ${cellSize}px)`;
+    boardEl.style.gridTemplateRows = `repeat(${board.height}, ${cellSize}px)`;
 
     for (let row = 0; row < board.height; row++) {
       for (let col = 0; col < board.width; col++) {
@@ -100,12 +100,29 @@ const Game = (() => {
     ParticleSystem.resize();
   }
 
+  const CUBE_STYLES = {
+    red:    { bg: 'linear-gradient(160deg, #ffb3be 0%, #ff4757 40%, #c0392b 100%)', face: '❤️' },
+    green:  { bg: 'linear-gradient(160deg, #a8f5c8 0%, #2ed573 40%, #1e8449 100%)', face: '🍀' },
+    blue:   { bg: 'linear-gradient(160deg, #8fa4ff 0%, #3742fa 40%, #1e3799 100%)', face: '💎' },
+    yellow: { bg: 'linear-gradient(160deg, #ffe066 0%, #ffa502 40%, #e67e22 100%)', face: '⭐' },
+    purple: { bg: 'linear-gradient(160deg, #d4b5ff 0%, #a55eea 40%, #6c3483 100%)', face: '🌸' }
+  };
+
   function createBlockEl(block, row, col) {
     const el = document.createElement('div');
     el.className = `block ${block.type}`;
     el.dataset.id = block.id;
     el.dataset.row = row;
     el.dataset.col = col;
+
+    const cube = CUBE_STYLES[block.type];
+    if (cube) {
+      el.style.background = cube.bg;
+      const face = document.createElement('span');
+      face.className = 'block-face';
+      face.textContent = cube.face;
+      el.appendChild(face);
+    }
     return el;
   }
 
@@ -181,10 +198,12 @@ const Game = (() => {
     },
 
     onBlockUpdated(row, col, block) {
-      const el = getBlockEl(row, col);
-      if (el) {
-        el.className = `block ${block.type}`;
-      }
+      const cell = getCellEl(row, col);
+      if (!cell) return;
+      const old = getBlockEl(row, col);
+      const el = createBlockEl(block, row, col);
+      if (old) cell.replaceChild(el, old);
+      else cell.appendChild(el);
     },
 
     onBlockCreated(row, col, block) {
