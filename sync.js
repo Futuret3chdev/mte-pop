@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Sync toon-blast-game → GitHub + Vercel
+ * Sync mte-pop → GitHub + Vercel
  * Run after any project change: node sync.js [commit message]
  */
 const fs = require('fs');
@@ -10,7 +10,7 @@ const { execSync } = require('child_process');
 
 const ROOT = __dirname;
 const OWNER = process.env.GITHUB_OWNER || 'Futuret3chdev';
-const REPO = process.env.GITHUB_REPO || 'toon-blast-game';
+const REPO = process.env.GITHUB_REPO || 'mte-pop';
 const MESSAGE = process.argv[2] || `Update ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
 
 const SKIP = new Set(['.git', '.vercel', '.tools', 'node_modules', '.DS_Store']);
@@ -41,7 +41,7 @@ function api(token, method, apiPath, body) {
       headers: {
         Authorization: `token ${token}`,
         Accept: 'application/vnd.github+json',
-        'User-Agent': 'toon-blast-sync',
+        'User-Agent': 'mte-pop-sync',
         ...(payload ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) } : {})
       }
     }, res => {
@@ -102,7 +102,7 @@ function syncVercel() {
   console.log('\n🚀 Vercel: deploying to production...');
   try {
     execSync('npx vercel@latest --prod --yes', { cwd: ROOT, env, stdio: 'inherit' });
-    console.log('✅ Vercel: https://toon-blast.vercel.app');
+    console.log('✅ Vercel: https://mte-pop.vercel.app');
   } catch (e) {
     console.error('⚠️  Vercel deploy failed — GitHub push succeeded. Vercel may auto-deploy via Git integration.');
     process.exitCode = 1;
