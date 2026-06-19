@@ -1,7 +1,14 @@
 #!/usr/bin/env node
 /**
- * Sync mte-pop → GitHub + Vercel
- * Run after any project change: node sync.js [commit message]
+ * Sync mte-pop → GitHub (+ optional Vercel CLI)
+ *
+ * ONE git push = ONE Vercel deployment (via GitHub integration).
+ * Previously each file was a separate commit → 40+ deploys per sync.
+ *
+ * Usage: node sync.js "commit message"
+ * Env:
+ *   SYNC_VERCEL=cli  — also run `vercel --prod` (causes a 2nd deploy; avoid unless needed)
+ *   SYNC_GITHUB=0    — skip GitHub, CLI deploy only
  */
 const fs = require('fs');
 const path = require('path');
@@ -11,10 +18,14 @@ const { execSync } = require('child_process');
 const ROOT = __dirname;
 const OWNER = process.env.GITHUB_OWNER || 'Futuret3chdev';
 const REPO = process.env.GITHUB_REPO || 'mte-pop';
+const BRANCH = process.env.GITHUB_BRANCH || 'main';
 const MESSAGE = process.argv[2] || `Update ${new Date().toISOString().slice(0, 16).replace('T', ' ')}`;
+const SKIP_GITHUB = process.env.SYNC_GITHUB === '0';
+const USE_VERCEL_CLI = process.env.SYNC_VERCEL === 'cli';
 
 const SKIP = new Set(['.git', '.vercel', '.tools', 'node_modules', '.DS_Store']);
 const SKIP_EXT = /\.(log)$/;
+const BINARY_EXT = /\.(png|jpg|jpeg|gif|ico|webp)$/i;
 
 function getGhToken() {
   const ghPaths = [
@@ -69,50 +80,89 @@ function walk(dir, base = '') {
   return files;
 }
 
-async function uploadFile(token, filePath) {
+function blobPayload(filePath) {
   const full = path.join(ROOT, filePath);
-  const content = fs.readFileSync(full).toString('base64');
-  const get = await api(token, 'GET', `/repos/${OWNER}/${REPO}/contents/${filePath}`);
-  const sha = get.status === 200 ? get.data.sha : undefined;
-  const put = await api(token, 'PUT', `/repos/${OWNER}/${REPO}/contents/${filePath}`, {
+  const buf = fs.readFileSync(full);
+  if (BINARY_EXT.test(filePath)) {
+    return { content: buf.toString('base64'), encoding: 'base64' };
+  }
+  return { content: buf.toString('utf8'), encoding: 'utf-8' };
+}
+
+async function createBlob(token, filePath) {
+  const res = await api(token, 'POST', `/repos/${OWNER}/${REPO}/git/blobs`, blobPayload(filePath));
+  if (res.status !== 201) {
+    throw new Error(`Blob failed for ${filePath}: ${res.status} ${JSON.stringify(res.data)}`);
+  }
+  return res.data.sha;
+}
+
+/**
+ * Push all files in a single atomic commit (one Vercel deploy from Git hook).
+ */
+async function syncGitHubAtomic(token) {
+  const files = walk(ROOT).sort();
+  console.log(`\n📦 GitHub: syncing ${files.length} files → ONE commit on ${OWNER}/${REPO}...`);
+
+  const treeItems = [];
+  for (const filePath of files) {
+    const sha = await createBlob(token, filePath);
+    treeItems.push({ path: filePath, mode: '100644', type: 'blob', sha });
+    process.stdout.write(`  ✓ ${filePath}\n`);
+  }
+
+  const treeRes = await api(token, 'POST', `/repos/${OWNER}/${REPO}/git/trees`, { tree: treeItems });
+  if (treeRes.status !== 201) {
+    throw new Error(`Tree failed: ${treeRes.status} ${JSON.stringify(treeRes.data)}`);
+  }
+
+  const refRes = await api(token, 'GET', `/repos/${OWNER}/${REPO}/git/ref/heads/${BRANCH}`);
+  const parents = [];
+  if (refRes.status === 200) {
+    parents.push(refRes.data.object.sha);
+  }
+
+  const commitRes = await api(token, 'POST', `/repos/${OWNER}/${REPO}/git/commits`, {
     message: MESSAGE,
-    content,
-    ...(sha ? { sha } : {})
+    tree: treeRes.data.sha,
+    parents
   });
-  if (put.status !== 200 && put.status !== 201) {
-    throw new Error(`Failed ${filePath}: ${put.status} ${JSON.stringify(put.data)}`);
+  if (commitRes.status !== 201) {
+    throw new Error(`Commit failed: ${commitRes.status} ${JSON.stringify(commitRes.data)}`);
   }
-  return filePath;
-}
 
-async function syncGitHub(token) {
-  const files = walk(ROOT);
-  console.log(`\n📦 GitHub: uploading ${files.length} files to ${OWNER}/${REPO}...`);
-  for (const f of files) {
-    await uploadFile(token, f);
-    process.stdout.write(`  ✓ ${f}\n`);
-    await new Promise(r => setTimeout(r, 200));
-  }
-  console.log(`✅ GitHub: https://github.com/${OWNER}/${REPO}`);
-}
+  const commitSha = commitRes.data.sha;
 
-function syncVercel() {
-  const nodeBin = process.env.NODE_BIN || '/tmp/node-v22.16.0-darwin-x64/bin';
-  const env = { ...process.env, PATH: `${nodeBin}:${process.env.PATH || ''}` };
-  console.log('\n🚀 Vercel: deploying to production...');
-  try {
-    execSync('npx vercel@latest --prod --yes', { cwd: ROOT, env, stdio: 'inherit' });
-    console.log('✅ Vercel: https://mte-pop.vercel.app');
-  } catch (e) {
-    console.error('⚠️  Vercel CLI failed, trying REST API fallback...');
-    try {
-      execSync(`"${process.execPath}" deploy-vercel-api.js`, { cwd: ROOT, stdio: 'inherit' });
-      console.log('✅ Vercel (API): https://mte-pop.vercel.app');
-    } catch (e2) {
-      console.error('⚠️  Vercel deploy failed — GitHub push succeeded. Vercel may auto-deploy via Git integration.');
-      process.exitCode = 1;
+  if (refRes.status === 200) {
+    const updateRes = await api(token, 'PATCH', `/repos/${OWNER}/${REPO}/git/refs/heads/${BRANCH}`, {
+      sha: commitSha,
+      force: false
+    });
+    if (updateRes.status !== 200) {
+      throw new Error(`Ref update failed: ${updateRes.status} ${JSON.stringify(updateRes.data)}`);
+    }
+  } else {
+    const createRes = await api(token, 'POST', `/repos/${OWNER}/${REPO}/git/refs`, {
+      ref: `refs/heads/${BRANCH}`,
+      sha: commitSha
+    });
+    if (createRes.status !== 201) {
+      throw new Error(`Ref create failed: ${createRes.status} ${JSON.stringify(createRes.data)}`);
     }
   }
+
+  console.log(`✅ GitHub: 1 commit pushed (${commitSha.slice(0, 7)})`);
+  console.log(`   https://github.com/${OWNER}/${REPO}`);
+  console.log('   → Vercel will auto-deploy ONCE from this push');
+}
+
+function syncVercelCli() {
+  const nodeBin = process.env.NODE_BIN || '/tmp/node-v22.16.0-darwin-x64/bin';
+  const env = { ...process.env, PATH: `${nodeBin}:${process.env.PATH || ''}` };
+  console.log('\n🚀 Vercel CLI: deploying to production...');
+  console.log('   ⚠️  This is a SEPARATE deploy if GitHub is also connected!');
+  execSync('npx vercel@latest --prod --yes', { cwd: ROOT, env, stdio: 'inherit' });
+  console.log('✅ Vercel CLI: https://mte-pop.vercel.app');
 }
 
 function ensureIcons() {
@@ -186,7 +236,19 @@ function ensureIcons() {
 (async () => {
   console.log(`🎮 MTE POP Sync — "${MESSAGE}"`);
   ensureIcons();
-  const token = getGhToken();
-  await syncGitHub(token);
-  syncVercel();
+
+  if (!SKIP_GITHUB) {
+    const token = getGhToken();
+    await syncGitHubAtomic(token);
+  }
+
+  if (USE_VERCEL_CLI) {
+    syncVercelCli();
+  } else if (!SKIP_GITHUB) {
+    console.log('\n💡 Skipping Vercel CLI (avoids duplicate deploy).');
+    console.log('   GitHub push triggers ONE production deploy automatically.');
+    console.log('   Force CLI: SYNC_VERCEL=cli ./sync.sh "message"');
+  } else {
+    syncVercelCli();
+  }
 })();

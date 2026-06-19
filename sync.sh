@@ -1,5 +1,6 @@
 #!/bin/bash
-# Sync game to GitHub + Vercel. Usage: ./sync.sh ["commit message"]
+# Sync game to GitHub (1 commit → 1 Vercel deploy). Usage: ./sync.sh ["commit message"]
+# Avoid SYNC_VERCEL=cli unless GitHub integration is broken — it causes a 2nd deploy.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 NODE_DIR="/tmp/node-v22.16.0-darwin-x64"
