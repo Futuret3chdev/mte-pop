@@ -1,9 +1,9 @@
 const Game = (() => {
   const SHOP_ITEMS = [
-    { id: 'bomb', label: 'Bomb', iconClass: 'shop-icon-bomb', desc: 'Blasts a 5×5 area!', price: 100, type: 'bomb' },
-    { id: 'rocket', label: 'Rocket', iconClass: 'shop-icon-rocket', desc: 'Clears a full row or column', price: 150, type: 'rocket_h' },
-    { id: 'disco', label: 'Disco Ball', iconClass: 'shop-icon-disco', desc: 'Destroys all blocks of one color', price: 200, type: 'disco' },
-    { id: 'extra_moves', label: '+5 Moves', iconClass: 'shop-icon-moves', desc: 'Instantly add 5 extra moves', price: 250, type: 'extra_moves' }
+    { id: 'bomb', label: 'Bomb', iconClass: 'shop-icon-bomb', iconKey: 'shopBomb', desc: 'Blasts a 5×5 area!', price: 100, type: 'bomb' },
+    { id: 'rocket', label: 'Rocket', iconClass: 'shop-icon-rocket', iconKey: 'shopRocket', desc: 'Clears a full row or column', price: 150, type: 'rocket_h' },
+    { id: 'disco', label: 'Disco Ball', iconClass: 'shop-icon-disco', iconKey: 'shopDisco', desc: 'Destroys all blocks of one color', price: 200, type: 'disco' },
+    { id: 'extra_moves', label: '+5 Moves', iconClass: 'shop-icon-moves', iconKey: 'shopMoves', desc: 'Instantly add 5 extra moves', price: 250, type: 'extra_moves' }
   ];
 
   const STATION_DATA = [
@@ -171,8 +171,9 @@ const Game = (() => {
 
       const el = document.createElement('div');
       el.className = 'shop-item';
+      const shopIcon = (typeof MTEIcons !== 'undefined' && MTEIcons[item.iconKey]) || '';
       el.innerHTML = `
-        <div class="shop-item-icon ${item.iconClass}"></div>
+        <div class="shop-item-icon ${item.iconClass}">${shopIcon}</div>
         <div class="shop-item-info">
           <span class="shop-item-name">${item.label}</span>
           <span class="shop-item-desc">${item.desc}</span>
@@ -682,15 +683,18 @@ const Game = (() => {
   }
 
   function renderStarRow(filled, total = 3) {
-    const star = MTEIcons.star;
-    let html = '';
-    for (let i = 0; i < total; i++) {
-      html += `<span class="star-icon${i < filled ? ' filled' : ''}">${star}</span>`;
+    if (typeof MTEIcons !== 'undefined' && MTEIcons.star) {
+      let html = '';
+      for (let i = 0; i < total; i++) {
+        html += `<span class="star-icon${i < filled ? ' filled' : ''}">${MTEIcons.star}</span>`;
+      }
+      return html;
     }
-    return html;
+    return '★'.repeat(filled) + '☆'.repeat(total - filled);
   }
 
   function injectStaticIcons() {
+    if (typeof MTEIcons === 'undefined') return;
     setIcon($('play-icon'), MTEIcons.play);
     setIcon($('map-icon'), MTEIcons.map);
     setIcon($('shop-icon'), MTEIcons.shop);
@@ -700,11 +704,11 @@ const Game = (() => {
     setIcon($('stat-coin-icon'), MTEIcons.coin);
     setIcon($('shop-coin-icon'), MTEIcons.coin);
     [$('profile-back'), $('shop-back'), $('level-back'), $('game-back')].forEach(el => setIcon(el, MTEIcons.back));
-    setIcon($('install-dismiss'), MTEIcons.close);
     updateMuteButton();
   }
 
   function updateMuteButton() {
+    if (typeof MTEIcons === 'undefined') return;
     const btn = $('mute-btn');
     if (btn) {
       setIcon(btn, AudioEngine.isEnabled() ? MTEIcons.soundOn : MTEIcons.soundOff);
@@ -746,7 +750,7 @@ const Game = (() => {
     });
 
     $('level-select-btn')?.addEventListener('click', () => {
-      buildLevelMap();
+      AudioEngine.init();
       showScreen('level');
     });
 
