@@ -16,7 +16,7 @@ api() {
 }
 
 # Create repo if missing
-api POST "/user/repos" "{\"name\":\"$REPO\",\"description\":\"Toon Blast puzzle game\",\"private\":false}" >/dev/null 2>&1 || true
+api POST "/user/repos" "{\"name\":\"$REPO\",\"description\":\"MTE POP puzzle game — MTECOSYSTEM\",\"private\":false}" >/dev/null 2>&1 || true
 
 upload_file() {
   local filepath="$1"
