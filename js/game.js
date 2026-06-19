@@ -6,7 +6,7 @@ const Game = (() => {
     { id: 'extra_moves', label: '+5 Moves', icon: '⚡', desc: 'Instantly add 5 extra moves', price: 250, type: 'extra_moves' }
   ];
 
-  const STATION_DATA = [
+  const STATION_THEMES = [
     { name: 'Sunny Meadow', color: '#55efc4' },
     { name: 'Rocky Hills', color: '#74b9ff' },
     { name: 'Golden Desert', color: '#fdcb6e' },
@@ -16,8 +16,17 @@ const Game = (() => {
     { name: 'Ice Kingdom', color: '#dfe6e9' },
     { name: 'Volcano Peak', color: '#d63031' },
     { name: 'Cloud City', color: '#fd79a8' },
-    { name: 'Final Station', color: '#ffeaa7' }
+    { name: 'Star Valley', color: '#ffeaa7' }
   ];
+
+  function getStationData(index) {
+    const theme = STATION_THEMES[index % STATION_THEMES.length];
+    const zone = Math.floor(index / STATION_THEMES.length) + 1;
+    return {
+      name: zone > 1 ? `${theme.name} ${zone}` : theme.name,
+      color: theme.color
+    };
+  }
 
   let board = null;
   let currentLevel = 1;
@@ -343,11 +352,15 @@ const Game = (() => {
 
     LEVELS.forEach((_, i) => {
       const num = i + 1;
-      const stationData = STATION_DATA[i] || STATION_DATA[0];
+      const stationData = getStationData(i);
       const side = i % 2 === 0 ? 'left' : 'right';
-      const unlocked = num <= prog.maxLevel;
+      const loggedIn = AuthManager.isLoggedIn();
       const stars = prog.stars[num] || 0;
-      const isCurrent = num === prog.maxLevel;
+      const unlocked = loggedIn
+        ? (num <= prog.maxLevel || stars > 0)
+        : num === 1;
+      const isCurrent = loggedIn && num === prog.maxLevel;
+      const isReplay = loggedIn && num < prog.maxLevel;
 
       if (i > 0) {
         const rail = document.createElement('div');
@@ -357,24 +370,30 @@ const Game = (() => {
       }
 
       const stationEl = document.createElement('div');
-      stationEl.className = `map-station ${side} ${unlocked ? 'unlocked' : 'locked'} ${isCurrent ? 'current' : ''} ${stars > 0 ? 'completed' : ''}`;
+      stationEl.className = `map-station ${side} ${unlocked ? 'unlocked' : 'locked'} ${isCurrent ? 'current' : ''} ${stars > 0 ? 'completed' : ''} ${isReplay ? 'replay' : ''}`;
       stationEl.dataset.level = num;
       stationEl.innerHTML = `
         <div class="station-scenery" style="--station-color:${stationData.color}">
           <span class="scenery-dot"></span>
           <span class="scenery-name">${stationData.name}</span>
         </div>
-        <button class="station-btn" type="button" ${unlocked ? '' : 'disabled'}>
+        <button class="station-btn" type="button" ${unlocked ? '' : 'disabled'} aria-label="Level ${num}${isReplay ? ' replay' : ''}">
           <span class="station-num">${num}</span>
           <span class="station-stars">${renderStarRow(stars)}</span>
+          ${isReplay ? '<span class="station-replay">Replay</span>' : ''}
         </button>
         ${isCurrent ? '<div class="station-train">YOU</div>' : ''}
+        ${!loggedIn && num > 1 ? '<div class="station-lock-hint">Sign in</div>' : ''}
       `;
 
       if (unlocked) {
-        stationEl.querySelector('.station-btn').addEventListener('click', () => {
+        const play = () => {
           AudioEngine.click();
           startLevel(num);
+        };
+        stationEl.querySelector('.station-btn').addEventListener('click', play);
+        if (isReplay) stationEl.addEventListener('click', (e) => {
+          if (!e.target.closest('.station-btn')) play();
         });
       }
       track.appendChild(stationEl);
@@ -405,7 +424,7 @@ const Game = (() => {
     const sizeW = (maxW - pad - gap * (width - 1)) / width;
     const sizeH = (maxH - pad - gap * (height - 1)) / height;
     const isMobile = window.innerWidth < 520 || 'ontouchstart' in window;
-    const maxCell = isMobile ? 44 : 52;
+    const maxCell = isMobile ? 44 : 58;
     return Math.max(26, Math.min(sizeW, sizeH, maxCell));
   }
 
@@ -730,13 +749,18 @@ const Game = (() => {
         progress.totalStars += stars - prev;
         progress.stars[board.levelNumber] = stars;
       }
-      if (board.levelNumber >= progress.maxLevel && board.levelNumber < LEVELS.length) {
+      const loggedIn = AuthManager.isLoggedIn();
+      if (loggedIn && board.levelNumber >= progress.maxLevel && board.levelNumber < LEVELS.length) {
         progress.maxLevel = board.levelNumber + 1;
       }
-      const coinReward = 50 + stars * 25 + movesLeft * 5;
-      progress.coins += coinReward;
-      saveProgress();
-      $('win-coins').textContent = `+${coinReward} coins`;
+      const coinReward = loggedIn ? (50 + stars * 25 + movesLeft * 5) : 0;
+      if (loggedIn) {
+        progress.coins += coinReward;
+        saveProgress();
+      }
+      $('win-coins').textContent = loggedIn
+        ? `+${coinReward} coins`
+        : 'Sign in to save progress & unlock levels!';
       updateMenuStats();
 
       $('win-score').textContent = score;
@@ -890,6 +914,33 @@ const Game = (() => {
     $('login-discord')?.addEventListener('click', async () => {
       const result = await AuthManager.signInDiscord();
       await handleAuthResult(result, 'Discord');
+    });
+
+    $('login-telegram')?.addEventListener('click', () => {
+      const bot = MTEPOP_CONFIG.telegramBotUsername;
+      const container = $('telegram-login-container');
+      if (bot && container?.querySelector('iframe')) {
+        container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showToast('Use the Telegram button below');
+        return;
+      }
+      $('telegram-username-input').value = '';
+      $('telegram-login-modal')?.classList.remove('hidden');
+    });
+
+    $('telegram-login-cancel')?.addEventListener('click', () => {
+      $('telegram-login-modal')?.classList.add('hidden');
+    });
+
+    $('telegram-login-confirm')?.addEventListener('click', () => {
+      const handle = $('telegram-username-input')?.value?.trim();
+      const result = AuthManager.signInTelegramHandle(handle);
+      if (result?.ok) {
+        $('telegram-login-modal')?.classList.add('hidden');
+        handleAuthResult(result, 'Telegram');
+      } else {
+        showToast(result?.error || 'Enter your Telegram username');
+      }
     });
 
     document.addEventListener('mtepop:telegramauth', () => {

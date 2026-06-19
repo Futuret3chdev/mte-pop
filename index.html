@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=14">
+  <link rel="stylesheet" href="/css/style.css?v=15">
 </head>
 <body>
   <div id="app">
@@ -94,6 +94,11 @@
           <h3 class="card-title">Sign In or Sign Up</h3>
           <p class="card-sub">Create an account or sign in — progress syncs across devices</p>
           <div class="social-login">
+            <button id="login-telegram" class="btn-social btn-telegram" type="button">
+              <span class="social-mark social-mark-telegram" aria-hidden="true"></span>
+              <span>Continue with Telegram</span>
+            </button>
+            <div id="telegram-login-container" class="telegram-login-container"></div>
             <button id="login-google" class="btn-social btn-google" type="button">
               <span class="social-mark social-mark-google" aria-hidden="true"></span>
               <span>Continue with Google</span>
@@ -111,7 +116,6 @@
               <span class="social-mark social-mark-discord" aria-hidden="true"></span>
               <span>Continue with Discord</span>
             </button>
-            <div id="telegram-login-container" class="telegram-login-container"></div>
           </div>
           <button id="logout-btn" class="btn-secondary btn-block hidden" type="button">Sign Out</button>
         </section>
@@ -209,17 +213,29 @@
       </div>
     </div>
 
+    <div id="telegram-login-modal" class="modal hidden">
+      <div class="modal-content">
+        <h2>Sign in with Telegram</h2>
+        <p class="modal-hint">Enter your @username to save progress across devices</p>
+        <input id="telegram-username-input" class="field-input" type="text" maxlength="32" placeholder="@username">
+        <div class="modal-actions">
+          <button id="telegram-login-confirm" class="btn-primary" type="button">Continue</button>
+          <button id="telegram-login-cancel" class="btn-secondary" type="button">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <div id="toast" class="toast hidden"></div>
   </div>
 
-  <script src="/js/config.js?v=14"></script>
-  <script src="/js/levels.js?v=14"></script>
-  <script src="/js/oauth.js?v=14"></script>
-  <script src="/js/auth.js?v=14"></script>
-  <script src="/js/audio.js?v=14"></script>
-  <script src="/js/particles.js?v=14"></script>
-  <script src="/js/board.js?v=14"></script>
-  <script src="/js/pwa.js?v=14"></script>
-  <script src="/js/game.js?v=14"></script>
+  <script src="/js/config.js?v=15"></script>
+  <script src="/js/levels.js?v=15"></script>
+  <script src="/js/oauth.js?v=15"></script>
+  <script src="/js/auth.js?v=15"></script>
+  <script src="/js/audio.js?v=15"></script>
+  <script src="/js/particles.js?v=15"></script>
+  <script src="/js/board.js?v=15"></script>
+  <script src="/js/pwa.js?v=15"></script>
+  <script src="/js/game.js?v=15"></script>
 </body>
 </html>

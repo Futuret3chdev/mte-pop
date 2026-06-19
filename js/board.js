@@ -412,7 +412,8 @@ class GameBoard {
   }
 
   checkEnd() {
-    const goalsDone = Object.keys(this.goals).every(
+    const goalKeys = Object.keys(this.goals);
+    const goalsDone = goalKeys.length > 0 && goalKeys.every(
       type => this.goalProgress[type] <= 0
     );
 

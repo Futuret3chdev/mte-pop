@@ -76,7 +76,7 @@ const AuthManager = (() => {
       ...saved,
       stars: { ...DEFAULT_PROGRESS.stars, ...(saved.stars || {}) },
       inventory: { ...DEFAULT_PROGRESS.inventory, ...(saved.inventory || {}) },
-      maxLevel: Math.max(1, Math.min(typeof LEVELS !== 'undefined' ? LEVELS.length : 10, saved.maxLevel || 1)),
+      maxLevel: Math.max(1, Math.min(typeof LEVELS !== 'undefined' ? LEVELS.length : 50, saved.maxLevel || 1)),
       coins: typeof saved.coins === 'number' ? saved.coins : DEFAULT_PROGRESS.coins,
       totalStars: saved.totalStars || 0
     };
@@ -111,18 +111,24 @@ const AuthManager = (() => {
   }
 
   function loadProgress() {
+    if (!isLoggedIn()) {
+      return { ...DEFAULT_PROGRESS };
+    }
     let saved = readRawProgress(progressKey());
-    if (!saved && !isLoggedIn()) {
-      saved = readRawProgress(LEGACY_KEY);
-      if (saved) {
-        localStorage.setItem(GUEST_KEY, JSON.stringify(saved));
+    if (!saved) {
+      const legacy = readRawProgress(LEGACY_KEY) || readRawProgress(GUEST_KEY);
+      if (legacy) {
+        saved = legacy;
+        saveProgress(normalizeProgress(legacy));
         localStorage.removeItem(LEGACY_KEY);
+        localStorage.removeItem(GUEST_KEY);
       }
     }
     return normalizeProgress(saved);
   }
 
   function saveProgress(data) {
+    if (!isLoggedIn()) return;
     localStorage.setItem(progressKey(), JSON.stringify(data));
   }
 
@@ -162,6 +168,7 @@ const AuthManager = (() => {
   function signOut() {
     user = null;
     saveSession();
+    localStorage.removeItem(GUEST_KEY);
     dispatchAuthChange();
   }
 
@@ -406,7 +413,6 @@ const AuthManager = (() => {
     container.innerHTML = '';
 
     if (!bot) {
-      container.classList.add('hidden');
       return;
     }
 
@@ -484,7 +490,21 @@ const AuthManager = (() => {
   }
 
   function getPlayLevel(progress) {
+    if (!isLoggedIn()) return 1;
     return progress.maxLevel || 1;
+  }
+
+  function signInTelegramHandle(handle) {
+    const name = (handle || '').replace('@', '').trim();
+    if (!name) return { ok: false, error: 'Enter your Telegram username' };
+
+    signIn({
+      id: `telegram_${name.toLowerCase()}`,
+      provider: 'telegram',
+      name: `@${name}`,
+      avatar: name.charAt(0).toUpperCase()
+    });
+    return { ok: true };
   }
 
   function avatarColor(letter) {
@@ -539,6 +559,7 @@ const AuthManager = (() => {
     signInFacebook,
     signInXOAuth,
     signInXHandle,
+    signInTelegramHandle,
     signInDiscord,
     renderGoogleButton,
     renderTelegramWidget,

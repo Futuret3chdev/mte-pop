@@ -10,7 +10,8 @@ const MTEPOP_CONFIG = {
   xClientId: '',
   xClientSecret: '',
   discordClientId: '',
-  telegramBotUsername: '',
+  // Your Telegram bot from @BotFather — /setdomain mte-pop.vercel.app
+  telegramBotUsername: 'MTEPOPGameBot',
 
   // Demo sign-in fallback when IDs are empty (localhost only)
   demoAuth: false
