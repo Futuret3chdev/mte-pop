@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Toon Blast — Puzzle Adventure</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app">
+    <!-- Main Menu -->
+    <div id="menu-screen" class="screen active">
+      <div class="menu-bg"></div>
+      <div class="menu-content">
+        <div class="logo">
+          <span class="logo-toon">TOON</span>
+          <span class="logo-blast">BLAST</span>
+        </div>
+        <p class="tagline">Tap matching blocks to blast!</p>
+        <button id="play-btn" class="btn-primary">▶ Play Level <span id="menu-level">1</span></button>
+        <button id="level-select-btn" class="btn-secondary">🗺 Level Map</button>
+        <div class="menu-stats">
+          <div class="stat"><span class="stat-icon">⭐</span><span id="total-stars">0</span> Stars</div>
+          <div class="stat"><span class="stat-icon">🏆</span>Level <span id="max-level">1</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Level Select -->
+    <div id="level-screen" class="screen">
+      <div class="screen-header">
+        <button class="btn-back" id="level-back">←</button>
+        <h2>Level Map</h2>
+      </div>
+      <div id="level-grid" class="level-grid"></div>
+    </div>
+
+    <!-- Game Screen -->
+    <div id="game-screen" class="screen">
+      <div class="game-hud">
+        <button class="btn-back" id="game-back">←</button>
+        <div class="hud-level">Level <span id="hud-level">1</span></div>
+        <div class="hud-moves">
+          <span class="moves-label">Moves</span>
+          <span id="moves-count" class="moves-value">20</span>
+        </div>
+      </div>
+
+      <div id="goals-panel" class="goals-panel"></div>
+
+      <div class="board-wrapper">
+        <div id="board" class="board"></div>
+        <canvas id="particles"></canvas>
+      </div>
+
+      <div id="combo-display" class="combo-display hidden">
+        <span id="combo-text">COMBO x2</span>
+      </div>
+
+      <div id="score-display" class="score-display">
+        Score: <span id="score-value">0</span>
+      </div>
+    </div>
+
+    <!-- Win Modal -->
+    <div id="win-modal" class="modal hidden">
+      <div class="modal-content win">
+        <div class="modal-stars" id="win-stars">⭐⭐⭐</div>
+        <h2>Level Complete!</h2>
+        <p class="modal-score">Score: <span id="win-score">0</span></p>
+        <button id="next-level-btn" class="btn-primary">Next Level →</button>
+        <button id="win-menu-btn" class="btn-secondary">Menu</button>
+      </div>
+    </div>
+
+    <!-- Lose Modal -->
+    <div id="lose-modal" class="modal hidden">
+      <div class="modal-content lose">
+        <h2>Out of Moves!</h2>
+        <p>Don't give up — try again!</p>
+        <button id="retry-btn" class="btn-primary">↻ Retry</button>
+        <button id="lose-menu-btn" class="btn-secondary">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/levels.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/particles.js"></script>
+  <script src="js/board.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>
