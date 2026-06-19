@@ -2274,6 +2274,41 @@ body {
   max-width: 100%;
 }
 
+.telegram-open-link {
+  display: block;
+  text-align: center;
+  text-decoration: none;
+  margin: 0.75rem 0;
+}
+
+.telegram-waiting {
+  text-align: center;
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin: 0.5rem 0;
+  animation: telegram-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes telegram-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+.telegram-fallback {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.telegram-fallback summary {
+  cursor: pointer;
+  opacity: 0.85;
+  margin-bottom: 0.5rem;
+}
+
+.telegram-fallback .field-input {
+  margin-top: 0.5rem;
+}
+
 .google-btn-container {
   display: flex;
   justify-content: center;

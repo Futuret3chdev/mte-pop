@@ -395,24 +395,78 @@ const AuthManager = (() => {
     }
   }
 
-  function onTelegramAuth(tgUser) {
-    if (!tgUser?.id) return;
+  function signInTelegramUser(tgUser) {
+    if (!tgUser?.id) return { ok: false, error: 'Invalid Telegram user' };
     const name = [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') || tgUser.username || 'Telegram Player';
     signIn({
       id: `telegram_${tgUser.id}`,
       provider: 'telegram',
       name: tgUser.username ? `@${tgUser.username}` : name,
-      avatar: name.replace('@', '').charAt(0).toUpperCase()
+      avatar: (tgUser.username || name).replace('@', '').charAt(0).toUpperCase()
     });
     document.dispatchEvent(new CustomEvent('mtepop:telegramauth', { detail: { ok: true } }));
+    return { ok: true };
+  }
+
+  function onTelegramAuth(tgUser) {
+    signInTelegramUser(tgUser);
+  }
+
+  async function tryTelegramWebAppAuth() {
+    const initData = window.Telegram?.WebApp?.initData;
+    if (!initData) return { ok: false, error: 'Not in Telegram' };
+
+    try {
+      const res = await fetch('/api/telegram/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData })
+      });
+      if (!res.ok) return { ok: false, error: 'Telegram verify failed' };
+      const user = await res.json();
+      return signInTelegramUser(user);
+    } catch {
+      return { ok: false, error: 'Telegram verify failed' };
+    }
+  }
+
+  async function startTelegramDeepLink() {
+    const bot = MTEPOP_CONFIG.telegramBotUsername?.replace('@', '');
+    if (!bot) return { ok: false, error: 'Telegram bot not configured' };
+
+    try {
+      const res = await fetch('/api/telegram/session', { method: 'POST' });
+      if (!res.ok) return { ok: false, error: 'Could not start Telegram sign-in' };
+      const data = await res.json();
+      return {
+        ok: true,
+        code: data.code,
+        deepLink: data.deepLink || `https://t.me/${bot}?start=mtepop_${data.code}`
+      };
+    } catch {
+      return { ok: false, error: 'Could not start Telegram sign-in' };
+    }
+  }
+
+  async function pollTelegramDeepLink(code) {
+    try {
+      const res = await fetch(`/api/telegram/status?code=${encodeURIComponent(code)}`);
+      if (res.status === 404) return { status: 'expired' };
+      if (!res.ok) return { status: 'error' };
+      return await res.json();
+    } catch {
+      return { status: 'error' };
+    }
   }
 
   function renderTelegramWidget(container) {
     if (!container) return;
-    const bot = MTEPOP_CONFIG.telegramBotUsername;
     container.innerHTML = '';
 
-    if (!bot) {
+    const bot = MTEPOP_CONFIG.telegramBotUsername;
+    const mode = MTEPOP_CONFIG.telegramAuthMode || 'deeplink';
+    if (!bot || mode !== 'widget') {
+      container.classList.add('hidden');
       return;
     }
 
@@ -560,6 +614,10 @@ const AuthManager = (() => {
     signInXOAuth,
     signInXHandle,
     signInTelegramHandle,
+    signInTelegramUser,
+    tryTelegramWebAppAuth,
+    startTelegramDeepLink,
+    pollTelegramDeepLink,
     signInDiscord,
     renderGoogleButton,
     renderTelegramWidget,

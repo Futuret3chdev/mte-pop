@@ -33,6 +33,7 @@ const Game = (() => {
   let placementMode = null;
   let progress = null;
   let uiReady = false;
+  let telegramPollTimer = null;
 
   const $ = id => document.getElementById(id);
 
@@ -916,19 +917,69 @@ const Game = (() => {
       await handleAuthResult(result, 'Discord');
     });
 
-    $('login-telegram')?.addEventListener('click', () => {
-      const bot = MTEPOP_CONFIG.telegramBotUsername;
+    function stopTelegramPoll() {
+      if (telegramPollTimer) {
+        clearInterval(telegramPollTimer);
+        telegramPollTimer = null;
+      }
+    }
+
+    async function beginTelegramDeepLink() {
+      const bot = MTEPOP_CONFIG.telegramBotUsername?.replace('@', '') || 'futuret3chdev';
+      const session = await AuthManager.startTelegramDeepLink();
+      if (!session?.ok) {
+        showToast(session?.error || 'Telegram sign-in unavailable');
+        $('telegram-username-input').value = '';
+        $('telegram-login-modal')?.classList.remove('hidden');
+        return;
+      }
+
+      const linkEl = $('telegram-open-bot');
+      if (linkEl) {
+        linkEl.href = session.deepLink;
+        linkEl.textContent = `Open @${bot}`;
+      }
+      $('telegram-auth-waiting')?.classList.remove('hidden');
+      $('telegram-auth-status').textContent = 'Open Telegram, tap Start, then return here.';
+      $('telegram-login-modal')?.classList.remove('hidden');
+
+      stopTelegramPoll();
+      telegramPollTimer = setInterval(async () => {
+        const status = await AuthManager.pollTelegramDeepLink(session.code);
+        if (status?.status === 'ok' && status.user) {
+          stopTelegramPoll();
+          $('telegram-login-modal')?.classList.add('hidden');
+          const result = AuthManager.signInTelegramUser(status.user);
+          await handleAuthResult(result, 'Telegram');
+        } else if (status?.status === 'expired') {
+          stopTelegramPoll();
+          showToast('Telegram link expired — try again');
+        }
+      }, 2000);
+    }
+
+    $('login-telegram')?.addEventListener('click', async () => {
+      const mode = MTEPOP_CONFIG.telegramAuthMode || 'deeplink';
       const container = $('telegram-login-container');
-      if (bot && container?.querySelector('iframe')) {
+
+      if (mode === 'widget' && container?.querySelector('iframe')) {
         container.scrollIntoView({ behavior: 'smooth', block: 'center' });
         showToast('Use the Telegram button below');
         return;
       }
-      $('telegram-username-input').value = '';
-      $('telegram-login-modal')?.classList.remove('hidden');
+
+      const webApp = await AuthManager.tryTelegramWebAppAuth();
+      if (webApp?.ok) {
+        await handleAuthResult(webApp, 'Telegram');
+        return;
+      }
+
+      await beginTelegramDeepLink();
     });
 
     $('telegram-login-cancel')?.addEventListener('click', () => {
+      stopTelegramPoll();
+      $('telegram-auth-waiting')?.classList.add('hidden');
       $('telegram-login-modal')?.classList.add('hidden');
     });
 
