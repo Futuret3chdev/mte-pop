@@ -2,11 +2,11 @@ const OAuthHelper = (() => {
   const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
 
   function redirectUri() {
+    const appUrl = (MTEPOP_CONFIG.appUrl || 'https://mte-pop.vercel.app').replace(/\/$/, '');
     const origin = window.location.origin;
-    if (origin && origin !== 'null' && !origin.startsWith('file')) {
-      return `${origin}/auth/callback`;
-    }
-    return `${MTEPOP_CONFIG.appUrl.replace(/\/$/, '')}/auth/callback`;
+    const isLocal = origin && (origin.includes('localhost') || origin.includes('127.0.0.1'));
+    if (isLocal) return `${origin}/auth/callback`;
+    return `${appUrl}/auth/callback`;
   }
 
   function randomString(len) {
@@ -83,21 +83,34 @@ const OAuthHelper = (() => {
   }
 
   async function exchangeDiscordCode(code, verifier) {
-    const clientId = MTEPOP_CONFIG.discordClientId;
-    const res = await fetch('https://discord.com/api/oauth2/token', {
+    const redirect = redirectUri();
+    const res = await fetch('/api/oauth/discord', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        grant_type: 'authorization_code',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         code,
-        redirect_uri: redirectUri(),
+        redirect_uri: redirect,
         code_verifier: verifier
       })
     });
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error_description || data.error || 'Discord token failed');
+    if (!res.ok) {
+      throw new Error(data.error || `Discord token failed (${res.status})`);
+    }
     return data.access_token;
+  }
+
+  function discordAuthorizeUrl(clientId, state, challenge) {
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri(),
+      response_type: 'code',
+      scope: 'identify',
+      state,
+      code_challenge: challenge,
+      code_challenge_method: 'S256'
+    });
+    return `https://discord.com/oauth2/authorize?${params.toString()}`;
   }
 
   async function exchangeXCode(code, verifier) {
@@ -131,6 +144,7 @@ const OAuthHelper = (() => {
     createPkce,
     openPopup,
     exchangeDiscordCode,
+    discordAuthorizeUrl,
     exchangeXCode
   };
 })();

@@ -368,8 +368,7 @@ const AuthManager = (() => {
       sessionStorage.setItem('mtepop_oauth_provider', 'discord');
       sessionStorage.setItem(`mtepop_pkce_${state}`, verifier);
 
-      const redirect = encodeURIComponent(OAuthHelper.redirectUri());
-      const url = `https://discord.com/api/oauth2/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${redirect}&response_type=code&scope=identify&state=${state}&code_challenge=${challenge}&code_challenge_method=S256`;
+      const url = OAuthHelper.discordAuthorizeUrl(clientId, state, challenge);
 
       const result = await OAuthHelper.openPopup(url, state);
       const verifierStored = sessionStorage.getItem(`mtepop_pkce_${state}`);
@@ -391,7 +390,14 @@ const AuthManager = (() => {
       return { ok: true };
     } catch (err) {
       if (err.message === 'Sign-in cancelled') return { ok: false, error: 'Cancelled' };
-      return { ok: false, error: err.message || 'Discord sign-in failed' };
+      const hint = OAuthHelper.redirectUri();
+      const msg = err.message || 'Discord sign-in failed';
+      return {
+        ok: false,
+        error: msg.includes('redirect') || msg.includes('400')
+          ? `${msg}. Discord redirect must be exactly: ${hint}`
+          : msg
+      };
     }
   }
 
