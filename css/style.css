@@ -40,11 +40,16 @@
 
 html {
   height: 100%;
+  width: 100%;
+  max-width: 100%;
   -webkit-text-size-adjust: 100%;
+  overflow: hidden;
 }
 
 html, body {
   overflow: hidden;
+  overflow-x: hidden;
+  max-width: 100%;
   font-family: 'Fredoka', sans-serif;
   user-select: none;
   -webkit-user-select: none;
@@ -55,6 +60,7 @@ body {
   position: fixed;
   inset: 0;
   width: 100%;
+  max-width: 100%;
   height: 100%;
   height: 100dvh;
   overscroll-behavior: none;
@@ -65,27 +71,27 @@ body {
 
 #app {
   width: 100%;
+  max-width: 100%;
   height: 100%;
   height: 100dvh;
-  max-width: 100%;
   margin: 0 auto;
   position: relative;
+  overflow: hidden;
   padding-left: var(--safe-left);
   padding-right: var(--safe-right);
-}
-
-@media (min-width: 520px) {
-  #app {
-    max-width: 480px;
-  }
+  box-sizing: border-box;
 }
 
 .screen {
   display: none;
   flex-direction: column;
   height: 100%;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
   position: absolute;
   inset: 0;
+  box-sizing: border-box;
 }
 
 .screen.active {
@@ -112,12 +118,21 @@ body {
   padding: calc(3.5rem + var(--safe-top)) var(--space-md) calc(var(--space-lg) + var(--safe-bottom));
   position: relative;
   z-index: 1;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   width: 100%;
-  max-width: var(--content-max);
+  max-width: min(var(--content-max), 100%);
   margin: 0 auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.menu-content::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .menu-hero {
@@ -547,12 +562,17 @@ body {
 
 .shop-list {
   flex: 1;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: var(--space-md);
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
+  width: 100%;
+  max-width: 100%;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 .shop-item {
@@ -814,11 +834,21 @@ body {
 /* ── Level Map (train adventure) ── */
 .level-map {
   flex: 1;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   position: relative;
   padding: 1rem 0 2rem;
   background: linear-gradient(180deg, #87CEEB 0%, #98D8C8 40%, #7CB342 100%);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  width: 100%;
+  max-width: 100%;
+}
+
+.level-map::-webkit-scrollbar {
+  display: none;
+  width: 0;
 }
 
 .map-sky {
@@ -872,8 +902,11 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2rem 1rem 3rem;
+  padding: 2rem 0.5rem 3rem;
   gap: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .map-rail {
@@ -1783,6 +1816,7 @@ body {
 .profile-body,
 .settings-body {
   flex: 1;
+  overflow-x: hidden;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   padding: var(--space-md);
@@ -1790,9 +1824,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--space-sm);
-  max-width: 480px;
+  max-width: 100%;
   margin: 0 auto;
   width: 100%;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.settings-body::-webkit-scrollbar,
+.shop-list::-webkit-scrollbar {
+  display: none;
+  width: 0;
 }
 
 .settings-card {
@@ -2088,9 +2130,44 @@ body {
   border: 1px solid #333;
 }
 
+.btn-discord {
+  background: #5865F2;
+  color: #fff;
+}
+
+.social-mark-discord {
+  background: #fff;
+  color: #5865F2;
+}
+
+.social-mark-discord::before {
+  content: '';
+  width: 14px;
+  height: 11px;
+  background: currentColor;
+  clip-path: polygon(50% 100%, 0 35%, 18% 0, 50% 22%, 82% 0, 100% 35%);
+}
+
+.telegram-login-container {
+  display: flex;
+  justify-content: center;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.telegram-login-container.hidden {
+  display: none;
+}
+
+.telegram-login-container iframe {
+  max-width: 100%;
+}
+
 .google-btn-container {
   display: flex;
   justify-content: center;
+  overflow: hidden;
+  max-width: 100%;
 }
 
 .google-btn-container:empty {
