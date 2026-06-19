@@ -1,29 +1,29 @@
 const AudioEngine = (() => {
   let ctx = null;
   let sfxEnabled = true;
-  let musicEnabled = true;
+  let musicEnabled = false;
   let musicGain = null;
-  let bassGain = null;
   let musicTimer = null;
   let musicStep = 0;
 
-  const MELODY = [523, 587, 659, 784, 659, 587, 523, 494];
-  const BASS = [131, 147, 165, 196, 165, 147, 131, 123];
+  const CHORDS = [
+    [261.63, 329.63, 392.00],
+    [293.66, 369.99, 440.00],
+    [329.63, 415.30, 493.88],
+    [246.94, 311.13, 369.99]
+  ];
 
   function init() {
     if (!ctx) {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
       musicGain = ctx.createGain();
-      bassGain = ctx.createGain();
-      musicGain.gain.value = 0.06;
-      bassGain.gain.value = 0.05;
+      musicGain.gain.value = 0.025;
       musicGain.connect(ctx.destination);
-      bassGain.connect(ctx.destination);
     }
     if (ctx.state === 'suspended') ctx.resume();
   }
 
-  function playTone(freq, duration, type = 'sine', volume = 0.15, dest = null) {
+  function playTone(freq, duration, type = 'sine', volume = 0.05, dest = null) {
     if (!ctx) return;
     const target = dest || ctx.destination;
     const osc = ctx.createOscillator();
@@ -38,7 +38,7 @@ const AudioEngine = (() => {
     osc.stop(ctx.currentTime + duration);
   }
 
-  function playNoise(duration, volume = 0.1) {
+  function playNoise(duration, volume = 0.06) {
     if (!sfxEnabled || !ctx) return;
     const bufferSize = Math.floor(ctx.sampleRate * duration);
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
@@ -58,14 +58,14 @@ const AudioEngine = (() => {
     if (!musicEnabled || !ctx || musicTimer) return;
     const tick = () => {
       if (!musicEnabled || !ctx) return;
-      const i = musicStep % MELODY.length;
-      playTone(MELODY[i], 0.4, 'triangle', 0.1, musicGain);
-      playTone(MELODY[i] / 2, 0.5, 'sine', 0.04, musicGain);
-      playTone(BASS[i], 0.55, 'sawtooth', 0.07, bassGain);
+      const chord = CHORDS[musicStep % CHORDS.length];
+      chord.forEach((freq, i) => {
+        playTone(freq, 1.8, 'sine', 0.04 - i * 0.008, musicGain);
+      });
       musicStep++;
     };
     tick();
-    musicTimer = setInterval(tick, 480);
+    musicTimer = setInterval(tick, 2400);
   }
 
   function stopMusic() {
@@ -79,7 +79,7 @@ const AudioEngine = (() => {
     try {
       const p = JSON.parse(localStorage.getItem('mtepop_audio') || '{}');
       sfxEnabled = p.sfx !== false;
-      musicEnabled = p.music !== false;
+      musicEnabled = p.music === true;
     } catch { /* defaults */ }
   }
 
@@ -106,15 +106,6 @@ const AudioEngine = (() => {
       else stopMusic();
     },
 
-    toggle() {
-      sfxEnabled = !sfxEnabled;
-      musicEnabled = sfxEnabled;
-      savePrefs();
-      if (musicEnabled) { init(); startMusic(); }
-      else stopMusic();
-      return sfxEnabled;
-    },
-
     toggleMusic() {
       this.setMusicEnabled(!musicEnabled);
       return musicEnabled;
@@ -125,73 +116,68 @@ const AudioEngine = (() => {
 
     pop() {
       if (!sfxEnabled || !ctx) return;
-      playTone(520, 0.08, 'sine', 0.12);
-      setTimeout(() => playTone(780, 0.06, 'sine', 0.08), 30);
+      playTone(520, 0.05, 'sine', 0.035);
     },
 
     match(count) {
       if (!sfxEnabled || !ctx) return;
-      const base = 300 + count * 40;
-      for (let i = 0; i < Math.min(count, 6); i++) {
-        setTimeout(() => playTone(base + i * 60, 0.07, 'triangle', 0.1), i * 25);
-      }
+      const base = 380 + Math.min(count, 5) * 25;
+      playTone(base, 0.06, 'sine', 0.04);
     },
 
     powerUp() {
       if (!sfxEnabled || !ctx) return;
-      playTone(440, 0.1, 'square', 0.1);
-      setTimeout(() => playTone(660, 0.1, 'square', 0.1), 60);
-      setTimeout(() => playTone(880, 0.15, 'square', 0.12), 120);
+      playTone(523, 0.1, 'sine', 0.08);
+      setTimeout(() => playTone(659, 0.12, 'sine', 0.07), 70);
     },
 
     explode(type = 'bomb') {
       if (!sfxEnabled || !ctx) return;
       const big = type === 'tnt' || type === 'bomb';
-      playNoise(big ? 0.35 : 0.15, big ? 0.2 : 0.1);
-      playTone(big ? 80 : 120, big ? 0.4 : 0.2, 'sawtooth', big ? 0.18 : 0.12);
+      playNoise(big ? 0.2 : 0.1, big ? 0.1 : 0.05);
+      playTone(big ? 120 : 180, big ? 0.25 : 0.15, 'sine', big ? 0.1 : 0.06);
     },
 
     fall() {
       if (!sfxEnabled || !ctx) return;
-      playTone(200, 0.04, 'sine', 0.04);
+      playTone(280, 0.03, 'sine', 0.03);
     },
 
     win() {
       if (!sfxEnabled || !ctx) return;
-      [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => playTone(f, 0.2, 'sine', 0.15), i * 120));
+      [523, 659, 784].forEach((f, i) => setTimeout(() => playTone(f, 0.18, 'sine', 0.1), i * 140));
     },
 
     lose() {
       if (!sfxEnabled || !ctx) return;
-      playTone(392, 0.3, 'sine', 0.12);
-      setTimeout(() => playTone(330, 0.4, 'sine', 0.12), 180);
+      playTone(349, 0.25, 'sine', 0.08);
+      setTimeout(() => playTone(294, 0.3, 'sine', 0.07), 160);
     },
 
     invalid() {
       if (!sfxEnabled || !ctx) return;
-      playTone(180, 0.12, 'sawtooth', 0.08);
+      playTone(200, 0.08, 'sine', 0.05);
     },
 
     combo(level) {
       if (!sfxEnabled || !ctx) return;
-      playTone(400 + level * 80, 0.12, 'triangle', 0.14);
+      playTone(500 + level * 40, 0.1, 'sine', 0.08);
     },
 
     coin() {
       if (!sfxEnabled || !ctx) return;
-      playTone(880, 0.08, 'sine', 0.12);
-      setTimeout(() => playTone(1175, 0.1, 'sine', 0.1), 60);
+      playTone(880, 0.07, 'sine', 0.07);
     },
 
     purchase() {
       if (!sfxEnabled || !ctx) return;
-      playTone(660, 0.1, 'square', 0.12);
-      setTimeout(() => playTone(990, 0.12, 'square', 0.1), 80);
+      playTone(587, 0.1, 'sine', 0.08);
+      setTimeout(() => playTone(784, 0.1, 'sine', 0.07), 80);
     },
 
     click() {
       if (!sfxEnabled || !ctx) return;
-      playTone(600, 0.05, 'sine', 0.06);
+      playTone(440, 0.03, 'sine', 0.02);
     }
   };
 })();
