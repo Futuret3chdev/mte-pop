@@ -16,22 +16,11 @@
   <link rel="manifest" href="/manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
   <div id="app">
-    <div id="install-banner" class="install-banner hidden">
-      <span class="install-text">Install MTE POP on your device</span>
-      <button id="install-btn" class="btn-install" type="button">Install</button>
-      <button id="install-dismiss" class="btn-icon-dismiss" type="button" aria-label="Dismiss"></button>
-    </div>
-
-    <div id="ios-install-hint" class="ios-install-hint hidden">
-      <p><strong>Install on iPhone:</strong> Tap Share, then <strong>Add to Home Screen</strong></p>
-      <button id="ios-hint-close" class="btn-secondary btn-sm" type="button">Got it</button>
-    </div>
-
     <div id="menu-screen" class="screen active">
       <div class="menu-bg"></div>
       <div class="menu-top-bar">
@@ -72,10 +61,12 @@
           <div class="stat"><span class="stat-svg" id="stat-trophy-icon"></span>Level <span id="max-level">1</span></div>
           <div class="stat"><span class="stat-svg" id="stat-coin-icon"></span><span id="menu-coins">500</span></div>
         </div>
-        <footer class="brand-footer">
-          <span class="brand-ecosystem">MTECOSYSTEM</span>
-          <span class="brand-credits">MADE BY FUTURET3CH AND MEMETORRENT</span>
-        </footer>
+        <div class="brand-panel">
+          <footer class="brand-footer">
+            <span class="brand-ecosystem">MTECOSYSTEM</span>
+            <span class="brand-credits">MADE BY FUTURET3CH AND MEMETORRENT</span>
+          </footer>
+        </div>
       </div>
     </div>
 
