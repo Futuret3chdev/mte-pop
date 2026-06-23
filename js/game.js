@@ -93,11 +93,22 @@ const Game = (() => {
     }
   }
 
-  function updateMascot(moves) {
-    const state = board
-      ? MetaManager.mascotFromMoves(moves, board.moves + moves)
-      : 'idle';
-    MetaManager.setMascotState($('game-mascot'), state);
+  function mascotCtx(event = null) {
+    return {
+      event,
+      moves: board?.moves ?? 20,
+      startMoves: board?.startMoves ?? board?.moves ?? 20,
+      comboChain: board?.comboChain ?? 0,
+      board
+    };
+  }
+
+  function refreshMascot() {
+    MascotBrain.refresh(mascotCtx());
+  }
+
+  function reactMascot(event, duration) {
+    MascotBrain.react(event, mascotCtx(), duration);
   }
 
   function saveProgress() {
@@ -217,7 +228,7 @@ const Game = (() => {
       if (name === 'quests') renderQuests();
       if (name === 'collections') renderCollections();
       if (name === 'stickers') renderStickers();
-      if (name === 'menu') MetaManager.setMascotState($('menu-mascot'), 'idle');
+      if (name === 'menu') MascotBrain.refresh();
       ensureProgress();
       updateMenuStats();
     } catch (err) {
@@ -804,6 +815,7 @@ const Game = (() => {
         const el = getBlockEl(row, col);
         if (el) el.classList.add('popping');
       });
+      if (cells.length >= 2) reactMascot('match', 700);
     },
 
     async onPowerUpExplosion(originRow, originCol, cells, type) {
@@ -910,7 +922,7 @@ const Game = (() => {
     onMovesChanged(moves) {
       $('moves-count').textContent = moves;
       $('moves-count').classList.toggle('low', moves <= 3);
-      updateMascot(moves);
+      refreshMascot();
     },
 
     onStatEvent(stat, amount = 1) {
@@ -923,12 +935,14 @@ const Game = (() => {
         item.querySelector('.goal-count').textContent = remaining;
         if (remaining <= 0) item.classList.add('done');
       }
+      refreshMascot();
     },
 
     onInvalidTap(row, col) {
       getBlockEl(row, col)?.classList.add('shake');
       setTimeout(() => getBlockEl(row, col)?.classList.remove('shake'), 400);
       AudioEngine.invalid();
+      reactMascot('invalid', 900);
     },
 
     onCombo(level) {
@@ -937,8 +951,7 @@ const Game = (() => {
       display.classList.remove('hidden');
       setTimeout(() => display.classList.add('hidden'), 800);
       trackMetaStat('combos', 1);
-      MetaManager.setMascotState($('game-mascot'), 'happy');
-      setTimeout(() => updateMascot(board?.moves ?? 0), 600);
+      reactMascot('combo', 1200);
     },
 
     onHint(cells) {
@@ -955,8 +968,7 @@ const Game = (() => {
 
     onWin(score, movesLeft) {
       AudioEngine.win();
-      MetaManager.setMascotState($('game-mascot'), 'happy');
-      MetaManager.setMascotState($('menu-mascot'), 'happy');
+      MascotBrain.apply(mascotCtx('win'), { forceQuip: true });
 
       const stars = calcStars(movesLeft);
       const prev = progress.stars[board.levelNumber] || 0;
@@ -1003,7 +1015,7 @@ const Game = (() => {
 
     onLose() {
       AudioEngine.lose();
-      MetaManager.setMascotState($('game-mascot'), 'sad');
+      MascotBrain.apply(mascotCtx('lose'), { forceQuip: true });
       $('lose-modal').classList.remove('hidden');
     }
   };
@@ -1047,8 +1059,8 @@ const Game = (() => {
     renderGoals();
     updateHUD();
     board.resetHintTimer();
-    MetaManager.setMascotState($('game-mascot'), 'idle');
-    updateMascot(board.moves);
+    board.startMoves = board.moves;
+    refreshMascot();
   }
 
   function updateMuteButton() {
@@ -1396,7 +1408,7 @@ const Game = (() => {
     try { renderProfilePickers(); } catch (err) { console.warn('Profile pickers failed:', err); }
     try { updateInviteSection(); } catch (err) { console.warn('Invite section failed:', err); }
     updateAuthUI();
-    MetaManager.setMascotState($('menu-mascot'), 'idle');
+    MascotBrain.init();
     showSettingsTab('sound');
 
     if (AudioEngine.isMusicEnabled()) {

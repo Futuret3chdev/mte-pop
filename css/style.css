@@ -2566,109 +2566,346 @@ body {
 
 .hub-badge.hidden { display: none; }
 
-/* ── Mascot Blip ── */
+/* ── Mascot Blip (emotion-driven faces) ── */
 .mascot {
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-.mascot-lg { width: 96px; height: 96px; margin: 0 auto 0.5rem; }
-.mascot-sm { width: 44px; height: 44px; }
+.mascot-lg { width: 104px; height: 104px; margin: 0 auto 0.35rem; }
+.mascot-sm { width: 48px; height: 48px; }
 
 .mascot-body {
   position: absolute;
-  inset: 8%;
-  border-radius: 45% 45% 40% 40%;
+  inset: 6%;
+  border-radius: 46% 46% 42% 42%;
   background: linear-gradient(160deg, #a29bfe 0%, #6c5ce7 55%, #4834d4 100%);
   box-shadow: inset 0 -6px 0 rgba(0,0,0,0.15), 0 4px 12px rgba(0,0,0,0.25);
   animation: mascot-bob 2.4s ease-in-out infinite;
+  transition: background 0.35s, transform 0.25s;
 }
 
 .mascot-face {
   position: relative;
-  z-index: 1;
-  width: 70%;
-  height: 55%;
-  margin-top: 8%;
+  z-index: 2;
+  width: 74%;
+  height: 58%;
+  margin-top: 10%;
 }
+
+.mascot-brow {
+  position: absolute;
+  top: 2%;
+  width: 22%;
+  height: 3px;
+  background: #2d3436;
+  border-radius: 3px;
+  transition: transform 0.2s, top 0.2s;
+}
+
+.mascot-brow.left { left: 16%; transform: rotate(8deg); }
+.mascot-brow.right { right: 16%; transform: rotate(-8deg); }
 
 .mascot-eye {
   position: absolute;
-  top: 18%;
-  width: 18%;
-  height: 22%;
+  top: 20%;
+  width: 20%;
+  height: 24%;
   background: #fff;
   border-radius: 50%;
-  box-shadow: inset 0 -2px 0 rgba(0,0,0,0.08);
+  overflow: hidden;
+  transition: height 0.2s, width 0.2s, border-radius 0.2s, transform 0.2s;
 }
 
-.mascot-eye.left { left: 18%; }
-.mascot-eye.right { right: 18%; }
+.mascot-eye.left { left: 16%; }
+.mascot-eye.right { right: 16%; }
 
-.mascot-eye::after {
-  content: '';
+.mascot-pupil {
   position: absolute;
-  width: 45%;
-  height: 55%;
+  width: 46%;
+  height: 52%;
   background: #2d3436;
   border-radius: 50%;
-  top: 25%;
-  left: 28%;
+  top: 24%;
+  left: 27%;
+  transition: transform 0.2s, opacity 0.2s;
 }
 
 .mascot-mouth {
   position: absolute;
   left: 50%;
-  bottom: 8%;
+  bottom: 4%;
   transform: translateX(-50%);
-  width: 36%;
-  height: 18%;
-  border-bottom: 3px solid #2d3436;
+  width: 38%;
+  height: 22%;
+  transition: all 0.2s;
+}
+
+.mascot-mouth-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 3px solid #2d3436;
+  border-top: none;
   border-radius: 0 0 50% 50%;
+  background: transparent;
+  transition: all 0.2s;
 }
 
 .mascot-blush {
   position: absolute;
-  top: 42%;
-  width: 14%;
-  height: 8%;
-  background: rgba(255,118,117,0.45);
+  top: 44%;
+  width: 15%;
+  height: 9%;
+  background: rgba(255,118,117,0.5);
   border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.25s;
 }
 
-.mascot-blush.left { left: 6%; }
-.mascot-blush.right { right: 6%; }
+.mascot-blush.left { left: 4%; }
+.mascot-blush.right { right: 4%; }
 
-.mascot[data-state="happy"] .mascot-mouth {
+.mascot-fx { position: absolute; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+
+.mascot-sparkle {
+  width: 10px;
+  height: 10px;
+  background: #ffeaa7;
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+
+.mascot-sparkle.s1 { top: -4%; right: 8%; }
+.mascot-sparkle.s2 { top: 8%; left: 0; width: 8px; height: 8px; }
+
+.mascot-tear {
+  width: 6px;
+  height: 10px;
+  background: #74b9ff;
+  border-radius: 50% 50% 50% 50% / 30% 30% 70% 70%;
+  top: 52%;
+}
+
+.mascot-tear.t1 { left: 22%; }
+.mascot-tear.t2 { right: 22%; }
+
+.mascot-sweat {
+  width: 8px;
+  height: 11px;
+  background: #74b9ff;
+  border-radius: 50%;
+  top: 18%;
+  right: 2%;
+  transform: rotate(18deg);
+}
+
+.mascot-quip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 4px);
+  transform: translateX(-50%) scale(0.9);
+  background: #fff;
+  color: #4834d4;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 0.25rem 0.5rem;
+  border-radius: 10px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+  z-index: 5;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.mascot-quip.show {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+.mascot-sm .mascot-quip { display: none; }
+
+/* ── idle ── */
+.mascot[data-state="idle"] .mascot-mouth-inner {
+  height: 45%;
+  border-width: 2px;
+}
+
+/* ── happy (good match) ── */
+.mascot[data-state="happy"] .mascot-body {
+  background: linear-gradient(160deg, #b8b2ff 0%, #7c6cf0 55%, #5b4cdb 100%);
+  animation: mascot-hop 0.45s ease;
+}
+
+.mascot[data-state="happy"] .mascot-eye {
+  height: 8%;
+  border-radius: 40%;
+  top: 26%;
+}
+
+.mascot[data-state="happy"] .mascot-pupil { opacity: 0; }
+
+.mascot[data-state="happy"] .mascot-mouth-inner {
+  height: 55%;
+  border-width: 4px;
+  border-radius: 0 0 55% 55%;
+}
+
+.mascot[data-state="happy"] .mascot-blush { opacity: 1; }
+
+/* ── excited (combo) ── */
+.mascot[data-state="excited"] .mascot-body {
+  background: linear-gradient(160deg, #ffeaa7 0%, #fdcb6e 40%, #f39c12 100%);
+  animation: mascot-shake 0.35s ease;
+}
+
+.mascot[data-state="excited"] .mascot-eye {
+  width: 24%;
   height: 28%;
-  border-bottom-width: 4px;
+}
+
+.mascot[data-state="excited"] .mascot-pupil {
+  background: #d63031;
+  transform: scale(1.2);
+}
+
+.mascot[data-state="excited"] .mascot-mouth-inner {
+  height: 50%;
+  width: 70%;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 3px solid #2d3436;
+  background: #ff7675;
+}
+
+.mascot[data-state="excited"] .mascot-sparkle { opacity: 1; animation: mascot-spark 0.6s ease infinite; }
+
+/* ── focus (almost won) ── */
+.mascot[data-state="focus"] .mascot-brow.left { transform: rotate(22deg) translateY(2px); }
+.mascot[data-state="focus"] .mascot-brow.right { transform: rotate(-22deg) translateY(2px); }
+.mascot[data-state="focus"] .mascot-pupil { transform: translateY(-1px) scale(1.1); }
+.mascot[data-state="focus"] .mascot-mouth-inner {
+  height: 20%;
+  border-radius: 4px;
+  border: 3px solid #2d3436;
+  border-top: 3px solid #2d3436;
+  background: transparent;
+}
+
+/* ── nervous ── */
+.mascot[data-state="nervous"] .mascot-body { animation: mascot-wobble 0.8s ease-in-out infinite; }
+.mascot[data-state="nervous"] .mascot-eye { transform: scale(1.05, 1.12); }
+.mascot[data-state="nervous"] .mascot-mouth-inner {
+  width: 50%;
+  height: 30%;
+  border-radius: 50%;
+  border: 3px solid #2d3436;
+}
+.mascot[data-state="nervous"] .mascot-sweat { opacity: 1; }
+
+/* ── worried ── */
+.mascot[data-state="worried"] .mascot-brow.left { transform: rotate(-18deg) translateY(-3px); }
+.mascot[data-state="worried"] .mascot-brow.right { transform: rotate(18deg) translateY(-3px); }
+.mascot[data-state="worried"] .mascot-eye { height: 30%; width: 24%; }
+.mascot[data-state="worried"] .mascot-pupil { transform: translateY(2px) scale(0.9); }
+.mascot[data-state="worried"] .mascot-mouth-inner {
+  border-top: 3px solid #2d3436;
+  border-bottom: none;
+  border-radius: 50% 50% 0 0;
+  height: 28%;
+}
+
+/* ── panic (1 move) ── */
+.mascot[data-state="panic"] .mascot-body {
+  background: linear-gradient(160deg, #ff7675 0%, #d63031 100%);
+  animation: mascot-panic 0.25s ease infinite;
+}
+
+.mascot[data-state="panic"] .mascot-eye {
+  height: 32%;
+  width: 26%;
+  border-radius: 45%;
+}
+
+.mascot[data-state="panic"] .mascot-pupil {
+  width: 30%;
+  height: 80%;
+  left: 35%;
+  border-radius: 20%;
+  animation: mascot-pupil-shake 0.2s infinite;
+}
+
+.mascot[data-state="panic"] .mascot-mouth-inner {
+  width: 42%;
+  height: 42%;
+  border-radius: 50%;
+  border: 3px solid #2d3436;
+  background: #2d3436;
+}
+
+.mascot[data-state="panic"] .mascot-sweat { opacity: 1; }
+
+/* ── sad (lose) ── */
+.mascot[data-state="sad"] .mascot-body {
+  background: linear-gradient(160deg, #74b9ff 0%, #0984e3 100%);
+  animation: none;
+  transform: translateY(4px);
+}
+
+.mascot[data-state="sad"] .mascot-brow.left { transform: rotate(-28deg); top: 8%; }
+.mascot[data-state="sad"] .mascot-brow.right { transform: rotate(28deg); top: 8%; }
+.mascot[data-state="sad"] .mascot-pupil { transform: translateY(6px); }
+.mascot[data-state="sad"] .mascot-mouth-inner {
+  border-top: 3px solid #2d3436;
+  border-bottom: none;
+  border-radius: 50% 50% 0 0;
+  height: 32%;
+  bottom: 0;
+}
+.mascot[data-state="sad"] .mascot-tear { opacity: 1; animation: mascot-tear 1.2s ease infinite; }
+
+/* ── celebrate (win) ── */
+.mascot[data-state="celebrate"] .mascot-body {
+  background: linear-gradient(160deg, #55efc4 0%, #00b894 100%);
+  animation: mascot-hop 0.55s ease infinite;
+}
+
+.mascot[data-state="celebrate"] .mascot-eye {
+  height: 6%;
+  width: 22%;
+  top: 28%;
+  border-radius: 30%;
+}
+
+.mascot[data-state="celebrate"] .mascot-pupil { opacity: 0; }
+
+.mascot[data-state="celebrate"] .mascot-mouth-inner {
+  height: 62%;
+  border-width: 5px;
   border-radius: 0 0 60% 60%;
 }
 
-.mascot[data-state="happy"] .mascot-body { animation: mascot-hop 0.5s ease; }
+.mascot[data-state="celebrate"] .mascot-blush { opacity: 1; }
+.mascot[data-state="celebrate"] .mascot-sparkle { opacity: 1; }
 
-.mascot[data-state="worried"] .mascot-eye,
-.mascot[data-state="nervous"] .mascot-eye { transform: scaleY(1.15); }
-
-.mascot[data-state="worried"] .mascot-mouth,
-.mascot[data-state="nervous"] .mascot-mouth {
-  border-bottom: none;
+/* ── confused (bad tap) ── */
+.mascot[data-state="confused"] .mascot-brow.left { transform: rotate(-24deg) translateY(-4px); }
+.mascot[data-state="confused"] .mascot-brow.right { transform: rotate(8deg); }
+.mascot[data-state="confused"] .mascot-pupil.left,
+.mascot[data-state="confused"] .mascot-eye.left .mascot-pupil { transform: translate(-2px, 0); }
+.mascot[data-state="confused"] .mascot-eye.right .mascot-pupil { transform: translate(3px, -2px); }
+.mascot[data-state="confused"] .mascot-mouth-inner {
+  width: 48%;
+  height: 0;
+  border: none;
   border-top: 3px solid #2d3436;
-  border-radius: 50% 50% 0 0;
-  bottom: 12%;
-  height: 14%;
+  border-radius: 0;
+  transform: rotate(-12deg);
+  background: none;
 }
-
-.mascot[data-state="sad"] .mascot-mouth {
-  border-bottom: none;
-  border-top: 3px solid #2d3436;
-  border-radius: 50% 50% 0 0;
-  bottom: 6%;
-}
-
-.mascot[data-state="sad"] .mascot-eye::after { top: 35%; }
 
 @keyframes mascot-bob {
   0%, 100% { transform: translateY(0); }
@@ -2676,8 +2913,40 @@ body {
 }
 
 @keyframes mascot-hop {
-  0%, 100% { transform: translateY(0); }
-  40% { transform: translateY(-10px); }
+  0%, 100% { transform: translateY(0) scale(1); }
+  40% { transform: translateY(-10px) scale(1.04); }
+}
+
+@keyframes mascot-shake {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-4deg); }
+  75% { transform: rotate(4deg); }
+}
+
+@keyframes mascot-wobble {
+  0%, 100% { transform: rotate(0); }
+  50% { transform: rotate(2deg); }
+}
+
+@keyframes mascot-panic {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes mascot-pupil-shake {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(2px); }
+}
+
+@keyframes mascot-tear {
+  0% { opacity: 0; transform: translateY(0); }
+  30% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(8px); }
+}
+
+@keyframes mascot-spark {
+  0%, 100% { transform: scale(1) rotate(0); opacity: 1; }
+  50% { transform: scale(1.3) rotate(20deg); opacity: 0.7; }
 }
 
 /* ── Settings tabs ── */
