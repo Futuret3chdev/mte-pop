@@ -60,6 +60,14 @@ export default async function handler(req, res) {
           updatedAt: now()
         };
         const gifts = players[user.id]?.cardGifts || [];
+        const clubId = players[user.id]?.clubId;
+        if (clubId) {
+          const clubs = await getClubs();
+          const club = clubs[clubId];
+          const member = club?.members?.find(m => m.id === user.id);
+          if (member && user.name) member.name = user.name;
+          if (club) await saveClubs(clubs);
+        }
         await savePlayers(players);
         return res.status(200).json({ ok: true, cardGifts: gifts });
       }
@@ -211,11 +219,14 @@ export default async function handler(req, res) {
         clubs[id] = {
           id,
           name: clubName,
+          description: '',
+          joinMode: 'open',
           adminId: user.id,
           createdAt: now(),
           members: [{ id: user.id, name: user.name, role: 'admin', joinedAt: now() }],
           questProgress: { pops: 0, wins: 0, stars: 0 },
-          invites: []
+          invites: [],
+          joinRequests: []
         };
         players[user.id] = { ...(players[user.id] || {}), ...user, clubId: id, updatedAt: now() };
         await saveClubs(clubs);
@@ -236,11 +247,144 @@ export default async function handler(req, res) {
         if (players[user.id]?.clubId) return res.status(400).json({ error: 'Already in a club' });
         if (club.members.length >= 30) return res.status(400).json({ error: 'Club is full' });
 
+        const joinMode = club.joinMode || 'open';
+        if (joinMode === 'invite') {
+          return res.status(403).json({ error: 'Invite-only club — accept an invite to join' });
+        }
+        if (joinMode === 'approval') {
+          club.joinRequests = club.joinRequests || [];
+          if (club.joinRequests.some(r => r.id === user.id)) {
+            return res.status(400).json({ error: 'Join request already pending' });
+          }
+          club.joinRequests.push({ id: user.id, name: user.name, at: now() });
+          await saveClubs(clubs);
+          return res.status(200).json({ ok: true, pending: true });
+        }
+
         club.members.push({ id: user.id, name: user.name, role: 'member', joinedAt: now() });
         players[user.id] = { ...(players[user.id] || {}), ...user, clubId: joinId, updatedAt: now() };
         await saveClubs(clubs);
         await savePlayers(players);
         return res.status(200).json({ ok: true, club });
+      }
+
+      case 'club_update': {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
+        const user = sanitizeUser(body);
+        const players = await getPlayers();
+        const clubs = await getClubs();
+        const club = clubs[players[user.id]?.clubId];
+        if (!club || club.adminId !== user.id) return res.status(403).json({ error: 'Admin only' });
+
+        if (body.clubName !== undefined) {
+          const clubName = String(body.clubName || '').trim().slice(0, 24);
+          if (!clubName) return res.status(400).json({ error: 'Club name required' });
+          club.name = clubName;
+        }
+        if (body.description !== undefined) {
+          club.description = String(body.description || '').trim().slice(0, 120);
+        }
+        if (body.joinMode !== undefined) {
+          const mode = ['open', 'invite', 'approval'].includes(body.joinMode) ? body.joinMode : 'open';
+          club.joinMode = mode;
+        }
+        await saveClubs(clubs);
+        return res.status(200).json({ ok: true, club });
+      }
+
+      case 'club_approve_join': {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
+        const user = sanitizeUser(body);
+        const targetId = String(body.targetId || '').trim();
+        const players = await getPlayers();
+        const clubs = await getClubs();
+        const club = clubs[players[user.id]?.clubId];
+        if (!club || !canManage(club, user.id)) return res.status(403).json({ error: 'No permission' });
+        if (club.members.length >= 30) return res.status(400).json({ error: 'Club is full' });
+        const reqIdx = (club.joinRequests || []).findIndex(r => r.id === targetId);
+        if (reqIdx < 0) return res.status(404).json({ error: 'No join request' });
+        const reqUser = club.joinRequests[reqIdx];
+        if (players[targetId]?.clubId) {
+          club.joinRequests.splice(reqIdx, 1);
+          await saveClubs(clubs);
+          return res.status(400).json({ error: 'Player already in a club' });
+        }
+        club.joinRequests.splice(reqIdx, 1);
+        club.members.push({
+          id: targetId,
+          name: players[targetId]?.name || reqUser.name,
+          role: 'member',
+          joinedAt: now()
+        });
+        players[targetId] = { ...(players[targetId] || {}), id: targetId, clubId: club.id, updatedAt: now() };
+        await saveClubs(clubs);
+        await savePlayers(players);
+        return res.status(200).json({ ok: true, club });
+      }
+
+      case 'club_deny_join': {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
+        const user = sanitizeUser(body);
+        const targetId = String(body.targetId || '').trim();
+        const players = await getPlayers();
+        const clubs = await getClubs();
+        const club = clubs[players[user.id]?.clubId];
+        if (!club || !canManage(club, user.id)) return res.status(403).json({ error: 'No permission' });
+        club.joinRequests = (club.joinRequests || []).filter(r => r.id !== targetId);
+        await saveClubs(clubs);
+        return res.status(200).json({ ok: true });
+      }
+
+      case 'club_kick': {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
+        const user = sanitizeUser(body);
+        const targetId = String(body.targetId || '').trim();
+        const players = await getPlayers();
+        const clubs = await getClubs();
+        const club = clubs[players[user.id]?.clubId];
+        if (!club || club.adminId !== user.id) return res.status(403).json({ error: 'Admin only' });
+        if (targetId === user.id || targetId === club.adminId) {
+          return res.status(400).json({ error: 'Cannot remove this member' });
+        }
+        club.members = club.members.filter(m => m.id !== targetId);
+        if (players[targetId]?.clubId === club.id) {
+          players[targetId] = { ...players[targetId], clubId: null, updatedAt: now() };
+          await savePlayers(players);
+        }
+        await saveClubs(clubs);
+        return res.status(200).json({ ok: true, club });
+      }
+
+      case 'club_revoke_invite': {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
+        const user = sanitizeUser(body);
+        const targetId = String(body.targetId || '').trim();
+        const players = await getPlayers();
+        const clubs = await getClubs();
+        const club = clubs[players[user.id]?.clubId];
+        if (!club || !canManage(club, user.id)) return res.status(403).json({ error: 'No permission' });
+        club.invites = (club.invites || []).filter(i => i.id !== targetId);
+        await saveClubs(clubs);
+        return res.status(200).json({ ok: true });
+      }
+
+      case 'club_leave': {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
+        const user = sanitizeUser(body);
+        const players = await getPlayers();
+        const clubs = await getClubs();
+        const clubId = players[user.id]?.clubId;
+        const club = clubId ? clubs[clubId] : null;
+        if (!club) return res.status(400).json({ error: 'Not in a club' });
+        if (club.adminId === user.id) {
+          return res.status(400).json({ error: 'Admin cannot leave — transfer admin or delete club first' });
+        }
+        club.members = club.members.filter(m => m.id !== user.id);
+        club.heartRequests = (club.heartRequests || []).filter(r => r.id !== user.id);
+        players[user.id] = { ...players[user.id], clubId: null, updatedAt: now() };
+        await saveClubs(clubs);
+        await savePlayers(players);
+        return res.status(200).json({ ok: true });
       }
 
       case 'club_invite': {

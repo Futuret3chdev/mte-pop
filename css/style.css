@@ -2667,6 +2667,71 @@ body {
 .club-stats-line { font-size: 0.85rem; margin: 0.35rem 0 0.75rem; opacity: 0.9; }
 .member-stars { margin-left: auto; color: #ffeaa7; font-size: 0.8rem; }
 
+.club-profile-header {
+  display: flex;
+  gap: 0.85rem;
+  align-items: flex-start;
+}
+
+.club-avatar {
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #a29bfe, #6c5ce7);
+  color: #fff;
+  font-size: 1.5rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+
+.club-profile-meta { flex: 1; min-width: 0; }
+.club-motto { font-size: 0.85rem; opacity: 0.9; margin: 0.25rem 0; font-style: italic; }
+.club-join-hint { font-size: 0.78rem; opacity: 0.8; margin: 0.35rem 0; }
+.club-you { font-size: 0.82rem; margin: 0.65rem 0 0.5rem; opacity: 0.92; }
+.club-id { font-size: 0.78rem; margin-top: 0.5rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.btn-sm { font-size: 0.72rem; padding: 0.25rem 0.55rem; }
+
+.link-btn {
+  border: none;
+  background: none;
+  color: #55efc4;
+  font-family: inherit;
+  font-size: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.club-roster li {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.member-avatar {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  background: rgba(116,185,255,0.35);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.member-info { display: flex; flex-direction: column; min-width: 0; }
+.member-info strong { font-size: 0.88rem; }
+.member-info small { font-size: 0.68rem; opacity: 0.75; }
+.member-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: flex-end; }
+.member-actions button { font-size: 0.65rem; padding: 0.2rem 0.4rem; }
+
 .lb-row {
   display: grid;
   grid-template-columns: 2.5rem 1fr auto;

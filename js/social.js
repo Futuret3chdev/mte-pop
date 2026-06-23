@@ -17,9 +17,10 @@ const SocialManager = (() => {
   function userPayload() {
     const user = AuthManager.getUser();
     if (!user) return null;
+    const profile = AuthManager.getProfile?.() || {};
     return {
       id: user.id,
-      name: user.name,
+      name: profile.name || user.name,
       provider: user.provider
     };
   }
@@ -87,6 +88,42 @@ const SocialManager = (() => {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
     return api('club_invite', { ...user, targetId });
+  }
+
+  async function updateClub(fields) {
+    const user = userPayload();
+    if (!user) throw new Error('Sign in required');
+    return api('club_update', { ...user, ...fields });
+  }
+
+  async function approveJoin(targetId) {
+    const user = userPayload();
+    if (!user) throw new Error('Sign in required');
+    return api('club_approve_join', { ...user, targetId });
+  }
+
+  async function denyJoin(targetId) {
+    const user = userPayload();
+    if (!user) throw new Error('Sign in required');
+    return api('club_deny_join', { ...user, targetId });
+  }
+
+  async function kickMember(targetId) {
+    const user = userPayload();
+    if (!user) throw new Error('Sign in required');
+    return api('club_kick', { ...user, targetId });
+  }
+
+  async function revokeInvite(targetId) {
+    const user = userPayload();
+    if (!user) throw new Error('Sign in required');
+    return api('club_revoke_invite', { ...user, targetId });
+  }
+
+  async function leaveClub() {
+    const user = userPayload();
+    if (!user) throw new Error('Sign in required');
+    return api('club_leave', user);
   }
 
   async function promoteMember(targetId, role) {
@@ -160,6 +197,12 @@ const SocialManager = (() => {
     joinClub,
     acceptInvite,
     invitePlayer,
+    updateClub,
+    approveJoin,
+    denyJoin,
+    kickMember,
+    revokeInvite,
+    leaveClub,
     promoteMember,
     contributeQuest,
     sendHeart,

@@ -527,6 +527,36 @@ const Game = (() => {
     }
   }
 
+  function formatClubDate(ts) {
+    if (!ts) return '';
+    try {
+      return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    } catch {
+      return '';
+    }
+  }
+
+  function joinModeLabel(mode) {
+    if (mode === 'invite') return 'Invite only';
+    if (mode === 'approval') return 'Admin approval';
+    return 'Open (Club ID)';
+  }
+
+  function escAttr(s) {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  }
+
+  function openClubScreen() {
+    if (!AuthManager.isLoggedIn()) {
+      showToast('Sign in to manage your club');
+      return;
+    }
+    AudioEngine.init();
+    AudioEngine.click();
+    ranksTab = 'myclub';
+    showScreen('leaderboard');
+  }
+
   async function renderClub() {
     const panel = $('club-panel');
     if (!panel) return;
@@ -555,19 +585,31 @@ const Game = (() => {
             </section>
           ` : ''}
           <section class="club-card">
+            <h3>Your Player Profile</h3>
+            <p class="card-sub">Set your display name in <button type="button" class="link-btn" id="club-goto-settings">Settings</button> so teammates recognize you.</p>
+            <p class="club-you">Signed in as <strong>${AuthManager.getProfile()?.name || AuthManager.getUser()?.name || 'Player'}</strong></p>
+          </section>
+          <section class="club-card">
+            <h3>Create a Club</h3>
+            <p class="card-sub">You become admin — set name, motto &amp; who can join.</p>
+            <input id="club-name-input" class="field-input" type="text" maxlength="24" placeholder="Club name">
+            <button id="club-create-btn" class="btn-primary btn-block" type="button">Create Club</button>
+          </section>
+          <section class="club-card">
             <h3>Join a Club</h3>
-            <p>Team up for quests, hearts &amp; card trades.</p>
+            <p class="card-sub">Enter a Club ID (open clubs) or accept an invite above.</p>
+            <input id="club-join-input" class="field-input" type="text" placeholder="Club ID to join">
+            <button id="club-join-btn" class="btn-secondary btn-block" type="button">Join / Request</button>
+          </section>
+          <section class="club-card">
+            <h3>Find Players</h3>
             <input id="club-search-input" class="field-input" type="text" placeholder="Search player username">
             <button id="club-search-btn" class="btn-secondary btn-block" type="button">Search Players</button>
             <div id="club-search-results" class="club-search-results"></div>
-            <hr class="club-divider">
-            <input id="club-name-input" class="field-input" type="text" maxlength="24" placeholder="New club name">
-            <button id="club-create-btn" class="btn-primary btn-block" type="button">Create Club</button>
-            <input id="club-join-input" class="field-input" type="text" placeholder="Club ID to join">
-            <button id="club-join-btn" class="btn-secondary btn-block" type="button">Join Club</button>
           </section>
         `;
         bindClubCreateUI();
+        $('club-goto-settings')?.addEventListener('click', () => openSettings('account'));
         panel.querySelectorAll('.club-accept-invite').forEach((btn) => {
           btn.addEventListener('click', async () => {
             try {
@@ -581,29 +623,96 @@ const Game = (() => {
       }
 
       const user = AuthManager.getUser();
+      const profile = AuthManager.getProfile();
       const isAdmin = club.adminId === user?.id;
       const canManage = club.members.some(m => m.id === user?.id && (m.role === 'admin' || m.role === 'officer'));
       const quests = data.teamQuests || [];
       const qp = club.questProgress || {};
+      const teamStars = club.members.reduce((s, m) => s + (m.stars || 0), 0);
+      const joinMode = club.joinMode || 'open';
+      const invites = club.invites || [];
+      const joinRequests = club.joinRequests || [];
 
       panel.innerHTML = `
-        <section class="club-card">
-          <h3>${club.name} ${isAdmin ? '<span class="club-badge-admin">Your Club</span>' : ''}</h3>
-          <p class="club-id">ID: <code>${club.id}</code></p>
-          <p class="club-stats-line"><strong>${club.members.reduce((s, m) => s + (m.stars || 0), 0) || '—'}</strong> team stars · <strong>${club.members.length}</strong> players</p>
+        <section class="club-card club-profile-card">
+          <div class="club-profile-header">
+            <div class="club-avatar" aria-hidden="true">${(club.name || 'C').charAt(0).toUpperCase()}</div>
+            <div class="club-profile-meta">
+              ${isAdmin ? `
+                <label class="field-label" for="club-name-edit">Club Name</label>
+                <input id="club-name-edit" class="field-input" type="text" maxlength="24" value="${escAttr(club.name)}">
+                <label class="field-label" for="club-desc-edit">Club Motto</label>
+                <input id="club-desc-edit" class="field-input" type="text" maxlength="120" placeholder="Short motto or description" value="${escAttr(club.description)}">
+                <label class="field-label" for="club-join-mode">Who Can Join</label>
+                <select id="club-join-mode" class="field-input">
+                  <option value="open"${joinMode === 'open' ? ' selected' : ''}>Anyone with Club ID</option>
+                  <option value="invite"${joinMode === 'invite' ? ' selected' : ''}>Invite only</option>
+                  <option value="approval"${joinMode === 'approval' ? ' selected' : ''}>Request — admin approves</option>
+                </select>
+                <button id="club-save-profile" class="btn-primary btn-block" type="button">Save Club Profile</button>
+              ` : `
+                <h3>${club.name}</h3>
+                ${club.description ? `<p class="club-motto">${club.description}</p>` : ''}
+                <p class="club-join-hint">Join policy: ${joinModeLabel(joinMode)}</p>
+              `}
+              <p class="club-id">Club ID: <code>${club.id}</code>
+                <button type="button" id="club-copy-id" class="btn-secondary btn-sm">Copy</button>
+              </p>
+              <p class="club-stats-line"><strong>${teamStars}</strong> team stars · <strong>${club.members.length}</strong>/30 players</p>
+            </div>
+          </div>
+          <p class="club-you">Playing as <strong>${profile?.name || user?.name}</strong></p>
           <button id="club-heart-request" class="btn-secondary btn-block" type="button">Request Heart from Club</button>
+          ${!isAdmin ? `<button id="club-leave-btn" class="btn-secondary btn-block" type="button">Leave Club</button>` : ''}
         </section>
+
+        ${canManage && joinRequests.length ? `
+        <section class="club-card">
+          <h3>Join Requests (${joinRequests.length})</h3>
+          <ul class="club-requests">
+            ${joinRequests.map(r => `
+              <li>
+                <span>${r.name}</span>
+                <button type="button" class="btn-primary club-approve-join" data-id="${r.id}">Approve</button>
+                <button type="button" class="btn-secondary club-deny-join" data-id="${r.id}">Deny</button>
+              </li>
+            `).join('')}
+          </ul>
+        </section>
+        ` : ''}
+
+        ${canManage && invites.length ? `
+        <section class="club-card">
+          <h3>Pending Invites (${invites.length})</h3>
+          <ul class="club-invites">
+            ${invites.map(i => `
+              <li>
+                <span>${i.name}</span>
+                <button type="button" class="btn-secondary club-revoke-invite" data-id="${i.id}">Revoke</button>
+              </li>
+            `).join('')}
+          </ul>
+        </section>
+        ` : ''}
+
         <section class="club-card">
           <h3>Members (${club.members.length})</h3>
-          <ul class="club-members">
+          <ul class="club-members club-roster">
             ${club.members.map(m => `
               <li>
-                <span>${m.name} <em>${m.role}</em></span>
-                ${m.id !== user?.id ? `<button type="button" class="club-send-heart" data-id="${m.id}">Send ❤️</button>` : ''}
-                ${isAdmin && m.role !== 'admin' ? `
-                  <button type="button" class="club-promote" data-id="${m.id}" data-role="officer">Make Officer</button>
-                  <button type="button" class="club-promote" data-id="${m.id}" data-role="member">Make Member</button>
-                ` : ''}
+                <span class="member-avatar" aria-hidden="true">${(m.name || '?').charAt(0).toUpperCase()}</span>
+                <span class="member-info">
+                  <strong>${m.name}</strong>
+                  <small>${m.role}${m.joinedAt ? ` · joined ${formatClubDate(m.joinedAt)}` : ''} · ${m.stars || 0}⭐</small>
+                </span>
+                <span class="member-actions">
+                  ${m.id !== user?.id ? `<button type="button" class="club-send-heart" data-id="${m.id}">❤️</button>` : ''}
+                  ${isAdmin && m.role !== 'admin' ? `
+                    <button type="button" class="club-promote" data-id="${m.id}" data-role="officer">Officer</button>
+                    <button type="button" class="club-promote" data-id="${m.id}" data-role="member">Member</button>
+                    <button type="button" class="club-kick" data-id="${m.id}">Remove</button>
+                  ` : ''}
+                </span>
               </li>
             `).join('')}
           </ul>
@@ -616,6 +725,17 @@ const Game = (() => {
             </ul>
           ` : ''}
         </section>
+
+        ${canManage ? `
+        <section class="club-card">
+          <h3>Invite Players</h3>
+          <p class="card-sub">Search by username, then send an invite.</p>
+          <input id="club-invite-input" class="field-input" type="text" placeholder="Search player username">
+          <button id="club-invite-btn" class="btn-secondary btn-block" type="button">Search &amp; Invite</button>
+          <div id="club-invite-results"></div>
+        </section>
+        ` : ''}
+
         <section class="club-card">
           <h3>Team Quests</h3>
           ${quests.map(q => {
@@ -631,14 +751,7 @@ const Game = (() => {
             `;
           }).join('')}
         </section>
-        ${canManage ? `
-        <section class="club-card">
-          <h3>Invite Player</h3>
-          <input id="club-invite-input" class="field-input" type="text" placeholder="Player username search">
-          <button id="club-invite-btn" class="btn-secondary btn-block" type="button">Search &amp; Invite</button>
-          <div id="club-invite-results"></div>
-        </section>
-        ` : ''}
+
         <section class="club-card">
           <h3>Send Duplicate Card</h3>
           <p class="card-sub">Gold/code cards cannot be sent.</p>
@@ -664,7 +777,8 @@ const Game = (() => {
       if (!name) return showToast('Enter a club name');
       try {
         await SocialManager.createClub(name);
-        showToast('Club created!');
+        showToast('Club created! Set up your profile below.');
+        ranksTab = 'myclub';
         renderClub();
       } catch (e) { showToast(e.message); }
     });
@@ -672,9 +786,9 @@ const Game = (() => {
       const id = $('club-join-input')?.value?.trim();
       if (!id) return showToast('Enter club ID');
       try {
-        await SocialManager.joinClub(id);
-        showToast('Joined club!');
-        renderClub();
+        const result = await SocialManager.joinClub(id);
+        showToast(result?.pending ? 'Join request sent to admin!' : 'Joined club!');
+        if (!result?.pending) renderClub();
       } catch (e) { showToast(e.message); }
     });
     $('club-search-btn')?.addEventListener('click', async () => {
@@ -700,6 +814,76 @@ const Game = (() => {
         return `<option value="${id}">${c?.emoji || ''} ${c?.name || id} (×${n})</option>`;
       }).join('') || '<option value="">No duplicate cards</option>';
     }
+
+    $('club-save-profile')?.addEventListener('click', async () => {
+      try {
+        await SocialManager.updateClub({
+          clubName: $('club-name-edit')?.value?.trim(),
+          description: $('club-desc-edit')?.value?.trim(),
+          joinMode: $('club-join-mode')?.value
+        });
+        showToast('Club profile saved!');
+        renderClub();
+      } catch (err) { showToast(err.message); }
+    });
+
+    $('club-copy-id')?.addEventListener('click', async () => {
+      const id = club.id;
+      try {
+        await navigator.clipboard.writeText(id);
+        showToast('Club ID copied!');
+      } catch {
+        showToast(id);
+      }
+    });
+
+    $('club-leave-btn')?.addEventListener('click', async () => {
+      try {
+        await SocialManager.leaveClub();
+        showToast('Left club');
+        renderClub();
+      } catch (err) { showToast(err.message); }
+    });
+
+    $('club-panel')?.querySelectorAll('.club-approve-join').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await SocialManager.approveJoin(btn.dataset.id);
+          showToast('Player added to club!');
+          renderClub();
+        } catch (err) { showToast(err.message); }
+      });
+    });
+
+    $('club-panel')?.querySelectorAll('.club-deny-join').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await SocialManager.denyJoin(btn.dataset.id);
+          showToast('Request denied');
+          renderClub();
+        } catch (err) { showToast(err.message); }
+      });
+    });
+
+    $('club-panel')?.querySelectorAll('.club-revoke-invite').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await SocialManager.revokeInvite(btn.dataset.id);
+          showToast('Invite revoked');
+          renderClub();
+        } catch (err) { showToast(err.message); }
+      });
+    });
+
+    $('club-panel')?.querySelectorAll('.club-kick').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        try {
+          await SocialManager.kickMember(btn.dataset.id);
+          showToast('Member removed');
+          renderClub();
+        } catch (err) { showToast(err.message); }
+      });
+    });
 
     $('club-heart-request')?.addEventListener('click', async () => {
       const h = HeartsManager.ensure(progress);
@@ -754,6 +938,7 @@ const Game = (() => {
             try {
               await SocialManager.invitePlayer(btn.dataset.id);
               showToast('Invite sent!');
+              renderClub();
             } catch (err) { showToast(err.message); }
           });
         });
@@ -884,6 +1069,7 @@ const Game = (() => {
   function updateSocialLocks() {
     const loggedIn = AuthManager.isLoggedIn();
     $('leaderboard-btn')?.classList.toggle('hub-tile-locked', !loggedIn);
+    $('club-btn')?.classList.toggle('hub-tile-locked', !loggedIn);
   }
 
   async function syncSocial() {
@@ -1662,6 +1848,10 @@ const Game = (() => {
         AudioEngine.click();
         ranksTab = 'players';
         showScreen('leaderboard');
+        break;
+      case 'club-btn':
+        e.preventDefault();
+        openClubScreen();
         break;
       case 'invite-win-btn':
         e.preventDefault();
