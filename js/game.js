@@ -60,6 +60,7 @@ const Game = (() => {
   let lastSocialSnapshot = '';
   let lastClubRenderSig = '';
   let lastClubPanelData = null;
+  let clubRenderGen = 0;
 
   function ensureProgress() {
     if (!progress) {
@@ -257,10 +258,10 @@ const Game = (() => {
       if (name === 'collections') renderCollections();
       if (name === 'stickers') renderStickers();
       if (name === 'leaderboard') {
-        showRanksTab(ranksTab);
+        showRanksTab(ranksTab, { skipClubRender: true });
         renderLeaderboard();
         renderClubLeaderboard();
-        renderClub();
+        if (ranksTab === 'myclub') renderClub();
       }
       if (name === 'menu') {
         MascotBrain.refresh();
@@ -570,7 +571,7 @@ const Game = (() => {
     }).join('');
   }
 
-  function showRanksTab(tab = 'players') {
+  function showRanksTab(tab = 'players', opts = {}) {
     ranksTab = tab;
     document.querySelectorAll('.ranks-tab').forEach((el) => {
       const active = el.dataset.ranksTab === tab;
@@ -581,10 +582,33 @@ const Game = (() => {
       el.classList.toggle('active', el.dataset.ranksTab === tab);
     });
     if (tab === 'clubs') renderClubLeaderboard();
-    if (tab === 'myclub') {
+    if (tab === 'myclub' && !opts.skipClubRender) {
       lastClubRenderSig = '';
-      renderClub();
+      renderClub(opts.renderClubOpts);
     }
+  }
+
+  function clubPrefillFromResult(result) {
+    if (!result?.club) return null;
+    return {
+      club: result.club,
+      teamQuests: result.teamQuests || lastClubPanelData?.teamQuests || [],
+      pendingInvites: []
+    };
+  }
+
+  async function showClubAfterJoin(result, toastMsg) {
+    if (result?.pending) {
+      showToast(toastMsg || 'Join request sent to admin!');
+      return;
+    }
+    if (!result?.club) return;
+    lastClubRenderSig = '';
+    syncClubRowCache(result.club);
+    showRanksTab('myclub', { skipClubRender: true });
+    showToast(toastMsg || `Joined ${result.club.name}!`);
+    await renderClub({ prefill: clubPrefillFromResult(result) });
+    renderClubLeaderboard();
   }
 
   function handleClubConflict(err, fallbackMsg) {
@@ -592,7 +616,7 @@ const Game = (() => {
       lastClubRenderSig = '';
       SocialManager.cacheMyClub(err.data.club);
       showToast(err.message || fallbackMsg);
-      showRanksTab('myclub');
+      showRanksTab('myclub', { skipClubRender: true });
       renderClub({
         prefill: {
           club: err.data.club,
@@ -848,6 +872,8 @@ const Game = (() => {
   }
 
   async function renderClub(opts = {}) {
+    const gen = ++clubRenderGen;
+    const stale = () => gen !== clubRenderGen;
     const silent = opts.silent === true;
     const panel = $('club-panel');
     if (!panel) return;
@@ -864,15 +890,23 @@ const Game = (() => {
         lastClubRenderSig = '';
       } else {
         await syncSocial({ background: true });
+        if (stale()) return;
         data = await SocialManager.getClub();
+        if (stale()) return;
+        if (!data.club) {
+          const fallback = SocialManager.getCachedMyClub?.();
+          if (fallback) data = { ...data, club: fallback };
+        }
       }
       const club = data.club;
       const pendingInvites = data.pendingInvites || [];
       lastClubPanelData = data;
       const sig = clubRenderSignature(club, pendingInvites);
       if (silent && sig === lastClubRenderSig && panel.querySelector('.club-card')) return;
+      if (stale()) return;
       lastClubRenderSig = sig;
       if (!club) {
+        if (stale()) return;
         panel.innerHTML = `
           ${pendingInvites.length ? `
             <section class="club-card">
@@ -924,9 +958,8 @@ const Game = (() => {
         panel.querySelectorAll('.club-accept-invite').forEach((btn) => {
           btn.addEventListener('click', async () => {
             try {
-              await SocialManager.acceptInvite(btn.dataset.id);
-              showToast('Joined club!');
-              renderClub();
+              const result = await SocialManager.acceptInvite(btn.dataset.id);
+              await showClubAfterJoin(result, 'Joined club!');
             } catch (e) { showToast(e.message); }
           });
         });
@@ -944,6 +977,7 @@ const Game = (() => {
       const invites = club.invites || [];
       const joinRequests = club.joinRequests || [];
 
+      if (stale()) return;
       panel.innerHTML = `
         <section class="club-card club-profile-card">
           <div class="club-profile-header">
@@ -1072,8 +1106,10 @@ const Game = (() => {
           }).join('')}
         </section>
       `;
+      if (stale()) return;
       bindClubPanelUI(club);
     } catch (err) {
+      if (stale()) return;
       panel.innerHTML = `<p class="club-guest">${err.message || 'Could not load club'}</p>`;
     }
   }
@@ -1109,29 +1145,21 @@ const Game = (() => {
     $('club-join-btn')?.addEventListener('click', async () => {
       const query = $('club-join-input')?.value?.trim();
       if (!query) return showToast('Enter a team name to search');
+      const btn = $('club-join-btn');
+      btn.disabled = true;
       try {
-        await syncSocial({ background: true });
         const result = await SocialManager.joinClub(query);
         if (result?.alreadyMember) {
-          showToast(`You're already in ${result.club?.name || 'this club'}!`);
+          await showClubAfterJoin(result, `You're already in ${result.club?.name || 'this club'}!`);
         } else {
-          showToast(result?.pending ? 'Join request sent to admin!' : 'Joined club!');
-        }
-        if (!result?.pending) {
-          lastClubRenderSig = '';
-          showRanksTab('myclub');
-          renderClub({
-            prefill: result.club ? {
-              club: result.club,
-              teamQuests: result.teamQuests || [],
-              pendingInvites: []
-            } : undefined
-          });
+          await showClubAfterJoin(result);
         }
       } catch (e) {
         if (!handleClubConflict(e, "You're already in a club")) {
           showToast(e.message || 'Could not join club');
         }
+      } finally {
+        btn.disabled = false;
       }
     });
     $('club-refresh-btn')?.addEventListener('click', async () => {
@@ -1594,20 +1622,18 @@ const Game = (() => {
     box.querySelectorAll('.club-join-pick').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const clubName = btn.querySelector('strong')?.textContent || 'team';
+        btn.disabled = true;
         try {
           const result = await SocialManager.joinClub(btn.dataset.clubId, { clubId: btn.dataset.clubId });
           if (result?.alreadyMember) {
-            showToast(`You're already in ${clubName}!`);
+            await showClubAfterJoin(result, `You're already in ${clubName}!`);
           } else {
-            showToast(result?.pending ? 'Join request sent to admin!' : `Joined ${clubName}!`);
-          }
-          if (!result?.pending) {
-            lastClubRenderSig = '';
-            showRanksTab('myclub');
-            renderClub({ prefill: result.club ? { club: result.club, teamQuests: [], pendingInvites: [] } : undefined });
+            await showClubAfterJoin(result, result?.pending ? 'Join request sent to admin!' : `Joined ${clubName}!`);
           }
         } catch (e) {
           if (!handleClubConflict(e, "You're already in a club")) showToast(e.message);
+        } finally {
+          btn.disabled = false;
         }
       });
     });
@@ -1617,7 +1643,6 @@ const Game = (() => {
     if (!query || !box) return;
     box.innerHTML = '<p class="club-loading">Searching teams…</p>';
     try {
-      await syncSocial();
       const data = await SocialManager.searchClubs(query);
       let clubs = data.clubs || [];
       if (!clubs.length) {

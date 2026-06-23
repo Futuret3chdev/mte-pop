@@ -456,7 +456,11 @@ export default async function handler(req, res) {
         players[user.id] = { ...(players[user.id] || {}), ...user, clubId: joinId, updatedAt: now() };
         await saveClubs(clubs);
         await savePlayers(players);
-        return res.status(200).json({ ok: true, club });
+        return res.status(200).json({
+          ok: true,
+          club: normalizeClub(club, players),
+          teamQuests: TEAM_QUESTS
+        });
       }
 
       case 'club_create': {
