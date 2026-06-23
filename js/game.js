@@ -650,53 +650,49 @@ const Game = (() => {
 
     async onPowerUpExplosion(originRow, originCol, cells, type) {
       boardEl.parentElement?.classList.add('screen-shake');
-      setTimeout(() => boardEl.parentElement?.classList.remove('screen-shake'), 450);
+      setTimeout(() => boardEl.parentElement?.classList.remove('screen-shake'), 260);
 
       ParticleSystem.shockwaveAtCell(boardEl, originRow, originCol, '#ffeaa7', type === 'tnt' ? 2.2 : 1.6);
 
       const originEl = getBlockEl(originRow, originCol);
       originEl?.classList.add('power-charge');
 
+      const flashClass = type === 'rocket_h' || type === 'rocket_v'
+        ? 'rocket-blast'
+        : type === 'disco'
+          ? 'disco-flash'
+          : 'blast-flash';
+
+      cells.forEach(({ row, col }) => {
+        getCellEl(row, col)?.classList.add(flashClass);
+        getBlockEl(row, col)?.classList.add('exploding');
+      });
+
       if (type === 'rocket_h' || type === 'rocket_v') {
         const isH = type === 'rocket_h';
-        const sorted = [...cells].sort((a, b) => isH ? a.col - b.col : a.row - b.row);
-        for (const { row, col } of sorted) {
-          const cell = getCellEl(row, col);
-          cell?.classList.add('rocket-blast');
-          getBlockEl(row, col)?.classList.add('exploding');
+        const step = Math.max(1, Math.floor(cells.length / 6));
+        cells.forEach(({ row, col }, i) => {
+          if (i % step !== 0 && i !== cells.length - 1) return;
           const c = getCellCenter(row, col);
           ParticleSystem.rocketTrail(c.x, c.y, isH);
-          await delay(18);
-        }
-        await delay(60);
-      } else if (type === 'bomb' || type === 'tnt') {
-        const sorted = [...cells].sort((a, b) => {
-          const da = Math.abs(a.row - originRow) + Math.abs(a.col - originCol);
-          const db = Math.abs(b.row - originRow) + Math.abs(b.col - originCol);
-          return da - db;
         });
-        for (const { row, col } of sorted) {
-          const dist = Math.abs(row - originRow) + Math.abs(col - originCol);
-          await delay(dist * 22);
-          const cell = getCellEl(row, col);
-          cell?.classList.add('blast-flash');
-          getBlockEl(row, col)?.classList.add('exploding');
+      } else if (type === 'bomb' || type === 'tnt') {
+        const step = Math.max(1, Math.floor(cells.length / 8));
+        cells.forEach(({ row, col }, i) => {
+          if (i % step !== 0 && i !== cells.length - 1) return;
           const c = getCellCenter(row, col);
-          ParticleSystem.burst(c.x, c.y, '#ff7675', 10);
-        }
-        await delay(80);
+          ParticleSystem.burst(c.x, c.y, '#ff7675', 6);
+        });
       } else if (type === 'disco') {
-        for (let i = 0; i < cells.length; i++) {
-          const { row, col } = cells[i];
-          const cell = getCellEl(row, col);
-          cell?.classList.add('disco-flash');
-          getBlockEl(row, col)?.classList.add('exploding');
+        const step = Math.max(1, Math.floor(cells.length / 10));
+        cells.forEach(({ row, col }, i) => {
+          if (i % step !== 0 && i !== cells.length - 1) return;
           const c = getCellCenter(row, col);
           ParticleSystem.discoBurst(c.x, c.y);
-          await delay(16);
-        }
-        await delay(100);
+        });
       }
+
+      await delay(32);
 
       originEl?.classList.remove('power-charge');
       document.querySelectorAll('.rocket-blast, .blast-flash, .disco-flash, .exploding').forEach(el => {

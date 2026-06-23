@@ -242,11 +242,11 @@ class GameBoard {
     await this.callbacks.onPowerUpExplosion(row, col, cells, block.type);
 
     const destroyed = new Set();
-    for (const { row: r, col: c } of cells) {
+    await Promise.all(cells.map(async ({ row: r, col: c }) => {
       const cellKey = `${r},${c}`;
-      if (destroyed.has(cellKey)) continue;
+      if (destroyed.has(cellKey)) return;
       const b = this.getBlock(r, c);
-      if (!b) continue;
+      if (!b) return;
       destroyed.add(cellKey);
 
       if (b.type === 'vase' && b.health > 1) {
@@ -257,11 +257,29 @@ class GameBoard {
         await this.destroyBlock(r, c, true);
         this.score += 20;
       }
+    }));
+
+    const neighborKeys = new Set();
+    for (const { row: r, col: c } of cells) {
+      const dirs = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr;
+        const nc = c + dc;
+        const key = `${nr},${nc}`;
+        if (destroyed.has(key) || neighborKeys.has(key)) continue;
+        const neighbor = this.getBlock(nr, nc);
+        if (neighbor && BLOCK_META[neighbor.type]?.interacts) {
+          neighborKeys.add(key);
+        }
+      }
     }
 
-    for (const { row: r, col: c } of cells) {
-      await this.damageNeighborsFrom(r, c, destroyed);
-    }
+    await Promise.all([...neighborKeys].map(async (key) => {
+      const [nr, nc] = key.split(',').map(Number);
+      destroyed.add(key);
+      await this.damageBlock(nr, nc, true);
+      this.score += 15;
+    }));
 
     AudioEngine.explode(block.type);
 
