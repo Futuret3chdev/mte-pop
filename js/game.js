@@ -75,6 +75,24 @@ const Game = (() => {
     setTimeout(() => t.classList.add('hidden'), 2800);
   }
 
+  function renderProfileAvatar(el, prof, user) {
+    if (!el) return;
+    const avatarUrl = prof.avatarUrl || user?.avatarUrl;
+    if (avatarUrl) {
+      el.textContent = '';
+      el.classList.add('has-image');
+      el.style.backgroundImage = `url("${avatarUrl}")`;
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.style.backgroundColor = 'transparent';
+      return;
+    }
+    el.classList.remove('has-image');
+    el.style.backgroundImage = '';
+    el.textContent = prof.avatar;
+    el.style.background = AuthManager.avatarColor(prof.avatar);
+  }
+
   function updateAuthUI() {
     const loggedIn = AuthManager.isLoggedIn();
     const user = AuthManager.getUser();
@@ -82,7 +100,12 @@ const Game = (() => {
 
     $('logout-btn')?.classList.toggle('hidden', !loggedIn);
     $('menu-telegram-btn')?.classList.toggle('hidden', loggedIn);
-    $('login-telegram')?.classList.remove('hidden');
+
+    const authSection = $('auth-section');
+    authSection?.querySelector('.social-login')?.classList.toggle('hidden', loggedIn);
+    authSection?.querySelector('.card-sub')?.classList.toggle('hidden', loggedIn);
+    const authTitle = authSection?.querySelector('.card-title');
+    if (authTitle) authTitle.textContent = loggedIn ? 'Account' : 'Sign In or Sign Up';
 
     const providerLabels = {
       google: 'Google',
@@ -91,17 +114,14 @@ const Game = (() => {
       discord: 'Discord',
       telegram: 'Telegram'
     };
-    const avatarColor = AuthManager.avatarColor(prof.avatar);
     if ($('profile-name')) $('profile-name').textContent = prof.name;
-    if ($('profile-avatar')) {
-      $('profile-avatar').textContent = prof.avatar;
-      $('profile-avatar').style.background = avatarColor;
-    }
+    renderProfileAvatar($('profile-avatar'), prof, user);
 
     if ($('profile-frame')) $('profile-frame').style.setProperty('--frame-color', prof.frame);
     if ($('profile-provider')) {
+      const provider = providerLabels[user?.provider] || user?.provider;
       $('profile-provider').textContent = loggedIn
-        ? `Signed in via ${providerLabels[user?.provider] || user?.provider}`
+        ? (provider ? `Connected via ${provider}` : 'Signed in')
         : 'Playing locally — sign in to sync across devices';
     }
     if ($('profile-name-input')) $('profile-name-input').value = prof.name;
@@ -511,18 +531,26 @@ const Game = (() => {
     ParticleSystem.resize();
   }
 
-  function refreshBoardDOM() {
-    boardEl.querySelectorAll('.block').forEach(el => el.remove());
-    boardEl.querySelectorAll('.cell').forEach(cell => cell.classList.add('empty'));
-
+  function refreshBoardDOM(dropIn = false) {
     for (let row = 0; row < board.height; row++) {
       for (let col = 0; col < board.width; col++) {
         const block = board.getBlock(row, col);
         const cell = getCellEl(row, col);
-        if (!block || !cell) continue;
+        if (!cell) continue;
+        const existing = getBlockEl(row, col);
+
+        if (!block) {
+          existing?.remove();
+          cell.classList.add('empty');
+          continue;
+        }
+
         cell.classList.remove('empty');
+        if (existing && existing.dataset.id === block.id) continue;
+
+        existing?.remove();
         const el = createBlockEl(block, row, col);
-        el.classList.add('drop-in');
+        if (dropIn) el.classList.add('drop-in');
         cell.appendChild(el);
       }
     }
@@ -684,12 +712,16 @@ const Game = (() => {
         ParticleSystem.burstAtCell(boardEl, row, col, board.height, board.width, color);
         el.classList.add('popping');
         AudioEngine.pop();
-        const ms = fast ? 35 : 120;
-        setTimeout(() => {
+        const finish = () => {
           el.remove();
           getCellEl(row, col)?.classList.add('empty');
           resolve();
-        }, ms);
+        };
+        if (fast) {
+          requestAnimationFrame(finish);
+          return;
+        }
+        setTimeout(finish, 120);
       });
     },
 
@@ -712,9 +744,9 @@ const Game = (() => {
     },
 
     async onBatchSettle(falls, spawns) {
-      refreshBoardDOM();
+      refreshBoardDOM(spawns.length > 0);
       if (!falls.length && !spawns.length) return;
-      await delay(falls.length > 8 ? 100 : 60);
+      await delay(20);
       document.querySelectorAll('.block.drop-in').forEach(el => el.classList.remove('drop-in'));
     },
 

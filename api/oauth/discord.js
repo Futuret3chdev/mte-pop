@@ -42,7 +42,17 @@ export default async function handler(req, res) {
       });
       return;
     }
-    res.status(200).json({ access_token: data.access_token });
+
+    const meRes = await fetch('https://discord.com/api/users/@me', {
+      headers: { Authorization: `Bearer ${data.access_token}` }
+    });
+    const me = await meRes.json();
+    if (!meRes.ok || !me?.id) {
+      res.status(502).json({ error: 'Could not load Discord profile' });
+      return;
+    }
+
+    res.status(200).json({ access_token: data.access_token, user: me });
   } catch (err) {
     res.status(500).json({ error: err.message || 'Discord token request failed' });
   }

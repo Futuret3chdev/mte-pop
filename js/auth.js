@@ -15,6 +15,7 @@ const AuthManager = (() => {
   const DEFAULT_PROFILE = {
     name: 'Player',
     avatar: 'P',
+    avatarUrl: null,
     frame: '#6c5ce7',
     bio: ''
   };
@@ -133,12 +134,16 @@ const AuthManager = (() => {
   }
 
   function setProfile(updates) {
+    if (updates.avatar && !updates.avatarUrl) {
+      updates.avatarUrl = null;
+    }
     profile = { ...profile, ...updates };
     if (profile.avatar) profile.avatar = profile.avatar.charAt(0).toUpperCase();
     saveProfile();
     if (user) {
       user.name = profile.name;
       user.avatar = profile.avatar;
+      user.avatarUrl = profile.avatarUrl || null;
       saveSession();
     }
     dispatchAuthChange();
@@ -151,10 +156,12 @@ const AuthManager = (() => {
       provider: account.provider,
       name: account.name || profile.name,
       avatar: (account.avatar || profile.avatar).charAt(0).toUpperCase(),
+      avatarUrl: account.avatarUrl || null,
       email: account.email || null
     };
     profile.name = user.name;
     profile.avatar = user.avatar;
+    profile.avatarUrl = user.avatarUrl;
     saveSession();
     saveProfile();
 
@@ -167,7 +174,9 @@ const AuthManager = (() => {
 
   function signOut() {
     user = null;
+    profile.avatarUrl = null;
     saveSession();
+    saveProfile();
     localStorage.removeItem(GUEST_KEY);
     dispatchAuthChange();
   }
@@ -374,18 +383,17 @@ const AuthManager = (() => {
       const verifierStored = sessionStorage.getItem(`mtepop_pkce_${state}`);
       sessionStorage.removeItem(`mtepop_pkce_${state}`);
 
-      const token = await OAuthHelper.exchangeDiscordCode(result.code, verifierStored);
-      const meRes = await fetch('https://discord.com/api/users/@me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const me = await meRes.json();
+      const data = await OAuthHelper.exchangeDiscordCode(result.code, verifierStored);
+      const me = data.user;
       if (!me?.id) throw new Error('Could not load Discord profile');
 
+      const displayName = me.global_name || me.username || 'Discord Player';
       signIn({
         id: `discord_${me.id}`,
         provider: 'discord',
-        name: me.global_name || me.username || 'Discord Player',
-        avatar: (me.global_name || me.username || 'D').charAt(0).toUpperCase()
+        name: displayName,
+        avatar: displayName.charAt(0).toUpperCase(),
+        avatarUrl: OAuthHelper.discordAvatarUrl(me)
       });
       return { ok: true };
     } catch (err) {
@@ -579,6 +587,7 @@ const AuthManager = (() => {
     if (user) {
       profile.name = user.name || profile.name;
       profile.avatar = (user.avatar || profile.avatar).charAt(0).toUpperCase();
+      profile.avatarUrl = user.avatarUrl || profile.avatarUrl || null;
     }
 
     if (MTEPOP_CONFIG.googleClientId) {

@@ -97,7 +97,18 @@ const OAuthHelper = (() => {
     if (!res.ok) {
       throw new Error(data.error || `Discord token failed (${res.status})`);
     }
-    return data.access_token;
+    return data;
+  }
+
+  function discordAvatarUrl(me) {
+    if (me.avatar) {
+      const ext = me.avatar.startsWith('a_') ? 'gif' : 'png';
+      return `https://cdn.discordapp.com/avatars/${me.id}/${me.avatar}.${ext}?size=128`;
+    }
+    const index = me.discriminator && me.discriminator !== '0'
+      ? parseInt(me.discriminator, 10) % 5
+      : Number((BigInt(me.id) >> 22n) % 6n);
+    return `https://cdn.discordapp.com/embed/avatars/${index}.png`;
   }
 
   function discordAuthorizeUrl(clientId, state, challenge) {
@@ -144,6 +155,7 @@ const OAuthHelper = (() => {
     createPkce,
     openPopup,
     exchangeDiscordCode,
+    discordAvatarUrl,
     discordAuthorizeUrl,
     exchangeXCode
   };

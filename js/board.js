@@ -143,11 +143,11 @@ class GameBoard {
         .map(c => ({ ...c }))
     );
 
-    for (const { row, col } of toDestroy) {
-      if (row === tapCell.row && col === tapCell.col && powerUp) continue;
+    await Promise.all(toDestroy.map(async ({ row, col }) => {
+      if (row === tapCell.row && col === tapCell.col && powerUp) return;
       await this.destroyBlock(row, col, true);
       this.score += 10;
-    }
+    }));
 
     const neighbors = new Set();
     for (const { row, col } of toDestroy) {

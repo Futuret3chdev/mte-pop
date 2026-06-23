@@ -2073,6 +2073,11 @@ body {
   background: #6c5ce7;
 }
 
+.profile-avatar.has-image {
+  color: transparent;
+  background-repeat: no-repeat;
+}
+
 .profile-card h3 {
   font-size: 1.4rem;
   margin-bottom: 0.2rem;
