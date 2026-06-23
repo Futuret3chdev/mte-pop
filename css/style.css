@@ -2523,39 +2523,85 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.35rem var(--pad-x);
+  gap: 0.65rem;
+  padding: 0.4rem var(--pad-x);
   background: rgba(0,0,0,0.2);
   flex-shrink: 0;
 }
 
 .star-quality {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: #ffeaa7;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  min-width: 4.5rem;
+  flex-shrink: 0;
+}
+
+.star-track {
+  position: relative;
+  flex: 1;
+  height: 1.35rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
+  overflow: visible;
+}
+
+.star-track-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(116,185,255,0.55) 0%, rgba(253,203,110,0.75) 100%);
+  box-shadow: 0 0 10px rgba(253,203,110,0.25);
+  transition: width 0.45s ease-out;
+  pointer-events: none;
 }
 
 .star-slots {
+  position: absolute;
+  inset: 0;
   display: flex;
-  gap: 0.35rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 0.15rem;
+  pointer-events: none;
 }
 
 .star-slot {
-  font-size: 1.35rem;
-  color: rgba(255,255,255,0.2);
-  transition: color 0.2s, transform 0.2s, text-shadow 0.2s;
+  width: 1.35rem;
+  height: 1.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255,255,255,0.35);
+  transition: color 0.35s ease, transform 0.35s ease, filter 0.35s ease;
+  z-index: 1;
 }
 
-.star-slot.lit {
+.star-slot .star-svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.star-slot.pending {
+  color: rgba(255,255,255,0.45);
+}
+
+.star-slot.earned {
   color: #fdcb6e;
-  text-shadow: 0 0 8px rgba(253,203,110,0.8);
-  transform: scale(1.08);
+  filter: drop-shadow(0 0 5px rgba(253,203,110,0.65));
+  transform: scale(1.06);
 }
 
-.star-slot.dim {
-  color: rgba(255,255,255,0.15);
+.star-slot.lost {
+  color: rgba(255,255,255,0.2);
+  opacity: 0.55;
 }
 
 .ranks-tabs {

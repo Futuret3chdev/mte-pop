@@ -24,7 +24,8 @@ const MTEIcons = {
   shopRocket: '<svg viewBox="0 0 32 32" fill="none"><path d="M16 4c-3 6-3 12 0 18 2-1 5-4 6-8-1-4-3-7-6-10z" fill="#74b9ff" stroke="#0984e3" stroke-width="1.5"/><circle cx="16" cy="14" r="2" fill="#dfe6e9"/><path d="M12 24l-1 4 5-1M20 24l1 4-5-1" stroke="#fdcb6e" stroke-width="2" stroke-linecap="round"/></svg>',
   shopDisco: '<svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="11" fill="url(#discoGrad)"/><circle cx="16" cy="16" r="4" fill="rgba(255,255,255,.6)"/><defs><radialGradient id="discoGrad"><stop offset="0%" stop-color="#ffeaa7"/><stop offset="50%" stop-color="#a29bfe"/><stop offset="100%" stop-color="#6c5ce7"/></radialGradient></defs></svg>',
   shopMoves: '<svg viewBox="0 0 32 32" fill="none"><path d="M18 5L8 16l10 11" stroke="#fdcb6e" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 16h14" stroke="#55efc4" stroke-width="3" stroke-linecap="round"/></svg>',
-  shopHearts: '<svg viewBox="0 0 32 32" fill="none"><path d="M16 26s-9-5.5-9-12a4.5 4.5 0 0 1 8-2.5 4.5 4.5 0 0 1 8 2.5c0 6.5-9 12-9 12z" fill="#ff4757"/><text x="16" y="18" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="Fredoka,sans-serif">+5</text></svg>'
+  shopHearts: '<svg viewBox="0 0 32 32" fill="none"><path d="M16 26s-9-5.5-9-12a4.5 4.5 0 0 1 8-2.5 4.5 4.5 0 0 1 8 2.5c0 6.5-9 12-9 12z" fill="#ff4757"/><text x="16" y="18" text-anchor="middle" fill="#fff" font-size="10" font-weight="700" font-family="Fredoka,sans-serif">+5</text></svg>',
+  starHollow: '<svg class="star-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>'
 };
 
 function injectHubIcons() {

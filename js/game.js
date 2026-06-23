@@ -809,18 +809,66 @@ const Game = (() => {
   function calcStars(movesLeft) {
     if (movesLeft >= 5) return 3;
     if (movesLeft >= 2) return 2;
-    return 1;
+    if (movesLeft > 0) return 1;
+    return 0;
+  }
+
+  function getStarBarState(movesLeft, startMoves) {
+    if (movesLeft <= 0) {
+      return { fill: 0, maxStars: 0, earned: [false, false, false], label: 'No stars' };
+    }
+
+    const movesUsed = Math.max(0, startMoves - movesLeft);
+    const maxStars = calcStars(movesLeft);
+    const pace3 = Math.max(1, startMoves - 5);
+    const pace2 = Math.max(pace3 + 1, startMoves - 2);
+    const labels = ['', 'Good', 'Great', 'Perfect'];
+
+    let fill = 0;
+    if (maxStars === 3) {
+      fill = (movesUsed / pace3) * 100;
+    } else if (maxStars === 2) {
+      const span = Math.max(1, pace2 - pace3);
+      fill = 66 + (Math.max(0, movesUsed - pace3) / span) * 34;
+    } else {
+      const span = Math.max(1, startMoves - pace2);
+      fill = 33 + (Math.max(0, movesUsed - pace2) / span) * 33;
+    }
+    fill = Math.min(100, Math.max(0, fill));
+
+    const thresholds = [33, 66, 100];
+    const earned = thresholds.map((t, i) => fill >= t - 2 && (i + 1) <= maxStars);
+
+    return {
+      fill,
+      maxStars,
+      earned,
+      label: movesUsed === 0 ? 'Keep going' : (labels[maxStars] || 'Good')
+    };
+  }
+
+  function initStarBarSlots() {
+    const svg = MTEIcons?.starHollow || '';
+    document.querySelectorAll('#star-bar .star-slot').forEach((el) => {
+      if (!el.innerHTML.trim()) el.innerHTML = svg;
+    });
   }
 
   function updateStarBar(movesLeft) {
-    const stars = calcStars(movesLeft);
-    const labels = ['', 'Good', 'Great', 'Perfect'];
+    const startMoves = board?.startMoves ?? board?.moves ?? movesLeft;
+    const state = getStarBarState(movesLeft, startMoves);
     const quality = $('star-quality');
-    if (quality) quality.textContent = movesLeft <= 0 ? 'No stars' : labels[stars] || 'Good';
+    if (quality) quality.textContent = state.label;
+
+    const fillEl = $('star-track-fill');
+    if (fillEl) fillEl.style.width = `${state.fill}%`;
+
     document.querySelectorAll('#star-bar .star-slot').forEach((el) => {
       const tier = Number(el.dataset.tier);
-      el.classList.toggle('lit', tier <= stars && movesLeft > 0);
-      el.classList.toggle('dim', movesLeft > 0 && tier > stars);
+      const on = state.earned[tier - 1];
+      el.classList.toggle('earned', on);
+      el.classList.toggle('pending', !on && tier <= state.maxStars);
+      el.classList.toggle('lost', tier > state.maxStars);
     });
   }
 
@@ -1899,6 +1947,7 @@ const Game = (() => {
 
     bindUI();
     try { injectHubIcons(); } catch (err) { console.warn('Hub icons failed:', err); }
+    try { initStarBarSlots(); } catch (err) { console.warn('Star bar init failed:', err); }
 
     try {
       ParticleSystem.init(particlesCanvas);
