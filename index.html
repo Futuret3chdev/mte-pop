@@ -17,7 +17,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=37">
+  <link rel="stylesheet" href="/css/style.css?v=38">
 </head>
 <body>
   <div id="app">
@@ -45,16 +45,22 @@
 
         <div class="hub-grid">
           <button id="level-select-btn" class="hub-tile" type="button">
-            <span class="hub-tile-icon" data-hub-icon="map" aria-hidden="true"></span>
+            <span class="hub-tile-icon hub-anim hub-anim-map" aria-hidden="true">
+              <i class="ha-island"></i><i class="ha-pin"></i><i class="ha-spark"></i>
+            </span>
             <span class="hub-tile-label">Map</span>
           </button>
           <button id="quests-btn" class="hub-tile" type="button">
-            <span class="hub-tile-icon" data-hub-icon="quests" aria-hidden="true"></span>
+            <span class="hub-tile-icon hub-anim hub-anim-quests" aria-hidden="true">
+              <i class="ha-scroll"></i><i class="ha-star"></i>
+            </span>
             <span class="hub-tile-label">Quests</span>
             <span id="quest-badge" class="hub-badge hidden">0</span>
           </button>
           <button id="shop-btn" class="hub-tile" type="button">
-            <span class="hub-tile-icon" data-hub-icon="shop" aria-hidden="true"></span>
+            <span class="hub-tile-icon hub-anim hub-anim-shop" aria-hidden="true">
+              <i class="ha-coin"></i><i class="ha-coin ha-coin-2"></i>
+            </span>
             <span class="hub-tile-label">Shop</span>
           </button>
           <button id="play-btn" class="hub-play" type="button">
@@ -62,19 +68,27 @@
             <span class="hub-play-level">Level <span id="menu-level">1</span></span>
           </button>
           <button id="collections-btn" class="hub-tile" type="button">
-            <span class="hub-tile-icon" data-hub-icon="cards" aria-hidden="true"></span>
+            <span class="hub-tile-icon hub-anim hub-anim-cards" aria-hidden="true">
+              <i class="ha-card-back"></i><i class="ha-card-front"></i>
+            </span>
             <span class="hub-tile-label">Cards</span>
           </button>
           <button id="stickers-btn" class="hub-tile" type="button">
-            <span class="hub-tile-icon" data-hub-icon="stickers" aria-hidden="true"></span>
+            <span class="hub-tile-icon hub-anim hub-anim-stickers" aria-hidden="true">
+              <i class="ha-sticker"></i><i class="ha-peel"></i>
+            </span>
             <span class="hub-tile-label">Stickers</span>
           </button>
           <button id="leaderboard-btn" class="hub-tile hub-tile-locked" type="button">
-            <span class="hub-tile-icon" data-hub-icon="ranks" aria-hidden="true"></span>
+            <span class="hub-tile-icon hub-anim hub-anim-ranks" aria-hidden="true">
+              <i class="ha-trophy"></i><i class="ha-crown"></i>
+            </span>
             <span class="hub-tile-label">Ranks</span>
           </button>
           <button id="club-btn" class="hub-tile hub-tile-locked" type="button">
-            <span class="hub-tile-icon" data-hub-icon="club" aria-hidden="true"></span>
+            <span class="hub-tile-icon hub-anim hub-anim-club" aria-hidden="true">
+              <i class="ha-user ha-user-1"></i><i class="ha-user ha-user-2"></i><i class="ha-user ha-user-3"></i>
+            </span>
             <span class="hub-tile-label">Club</span>
           </button>
           <button id="menu-telegram-btn" class="hub-tile hub-tile-accent" type="button">
@@ -125,6 +139,7 @@
         <section id="ranks-panel-players" class="ranks-panel active" data-ranks-tab="players">
           <p class="screen-intro">Sign in to compete on the global player ranks.</p>
           <ol id="leaderboard-list" class="leaderboard-list"></ol>
+          <div id="player-view-detail" class="player-view-detail hidden"></div>
         </section>
         <section id="ranks-panel-clubs" class="ranks-panel" data-ranks-tab="clubs">
           <p class="screen-intro">Top 20 clubs ranked by total team stars.</p>
@@ -382,20 +397,20 @@
     <div id="toast" class="toast hidden"></div>
   </div>
 
-  <script src="/js/config.js?v=37"></script>
-  <script src="/js/icons.js?v=37"></script>
-  <script src="/js/cards-data.js?v=37"></script>
-  <script src="/js/meta.js?v=37"></script>
-  <script src="/js/mascot.js?v=37"></script>
-  <script src="/js/hearts.js?v=37"></script>
-  <script src="/js/social.js?v=37"></script>
-  <script src="/js/levels.js?v=37"></script>
-  <script src="/js/oauth.js?v=37"></script>
-  <script src="/js/auth.js?v=37"></script>
-  <script src="/js/audio.js?v=37"></script>
-  <script src="/js/particles.js?v=37"></script>
-  <script src="/js/board.js?v=37"></script>
-  <script src="/js/pwa.js?v=37"></script>
-  <script src="/js/game.js?v=37"></script>
+  <script src="/js/config.js?v=38"></script>
+  <script src="/js/icons.js?v=38"></script>
+  <script src="/js/cards-data.js?v=38"></script>
+  <script src="/js/meta.js?v=38"></script>
+  <script src="/js/mascot.js?v=38"></script>
+  <script src="/js/hearts.js?v=38"></script>
+  <script src="/js/social.js?v=38"></script>
+  <script src="/js/levels.js?v=38"></script>
+  <script src="/js/oauth.js?v=38"></script>
+  <script src="/js/auth.js?v=38"></script>
+  <script src="/js/audio.js?v=38"></script>
+  <script src="/js/particles.js?v=38"></script>
+  <script src="/js/board.js?v=38"></script>
+  <script src="/js/pwa.js?v=38"></script>
+  <script src="/js/game.js?v=38"></script>
 </body>
 </html>

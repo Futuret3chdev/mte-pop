@@ -1,5 +1,7 @@
 const Game = (() => {
   const CLUB_EMBLEMS = ['🏆', '🦁', '🐉', '🌟', '⚡', '🔥', '💎', '🎮', '🌈', '🦊', '👑', '🚀', '🌊', '🍀', '🎯', '⭐'];
+  const clubRowCache = {};
+  const playerRowCache = {};
 
   const SHOP_ITEMS = [
     { id: 'hearts', label: 'Refill Hearts', iconKey: 'shopHearts', desc: 'Restore all 5 hearts instantly', price: 100, kind: 'hearts' },
@@ -575,25 +577,90 @@ const Game = (() => {
     if (tab === 'myclub') renderClub();
   }
 
+  function renderPlayerDetailCard(player, club) {
+    const detail = $('player-view-detail');
+    if (!detail || !player) return;
+    detail.classList.remove('hidden');
+    detail.innerHTML = `
+      <section class="club-card player-profile-card">
+        <button type="button" class="btn-secondary player-detail-close">Close</button>
+        <div class="player-profile-head">
+          <span class="player-avatar" aria-hidden="true">${(player.name || '?').charAt(0).toUpperCase()}</span>
+          <div>
+            <h3>${player.name}</h3>
+            <p class="player-rank-score">Rank score <strong>${player.score ?? 0}</strong></p>
+          </div>
+        </div>
+        <div class="player-stat-grid">
+          <div class="player-stat"><span>⭐ Stars</span><strong>${player.totalStars || 0}</strong></div>
+          <div class="player-stat"><span>🗺️ Level</span><strong>${player.maxLevel || 1}</strong></div>
+          <div class="player-stat"><span>🃏 Cards</span><strong>${player.uniqueCards || 0}</strong></div>
+        </div>
+        ${club ? `
+          <div class="player-club-block">
+            <span class="player-club-emoji">${club.emoji || '🏆'}</span>
+            <div>
+              <strong>${club.name}</strong>
+              <small>${club.role || 'member'} · ${club.memberCount || 0} players · ${club.teamStars || 0}⭐ team</small>
+            </div>
+          </div>
+        ` : '<p class="player-no-club">Not in a club yet</p>'}
+      </section>
+    `;
+    detail.querySelector('.player-detail-close')?.addEventListener('click', () => {
+      detail.classList.add('hidden');
+    });
+  }
+
+  async function viewPlayerDetail(playerId) {
+    if (!playerId) return;
+    const detail = $('player-view-detail');
+    if (detail) {
+      detail.classList.remove('hidden');
+      detail.innerHTML = '<p class="club-loading">Loading player…</p>';
+    }
+    const cached = playerRowCache[playerId];
+    if (cached) renderPlayerDetailCard(cached, cached.club || null);
+    try {
+      const data = await SocialManager.viewPlayer(playerId);
+      playerRowCache[playerId] = { ...data.player, club: data.club };
+      renderPlayerDetailCard(data.player, data.club);
+    } catch (err) {
+      if (cached) return;
+      if (detail) detail.innerHTML = `<p class="club-guest">${err.message || 'Could not load player'}</p>`;
+    }
+  }
+
   async function renderLeaderboard() {
     const list = $('leaderboard-list');
+    const playerDetail = $('player-view-detail');
     if (!list) return;
     if (!AuthManager.isLoggedIn()) {
       list.innerHTML = '<li class="lb-guest">Sign in to view the leaderboard.</li>';
       return;
     }
     list.innerHTML = '<li class="lb-loading">Loading ranks…</li>';
+    if (playerDetail) playerDetail.classList.add('hidden');
     try {
       await syncSocial();
       const data = await SocialManager.fetchLeaderboard();
       const user = AuthManager.getUser();
-      list.innerHTML = (data.rows || []).map((row, i) => `
+      list.innerHTML = (data.rows || []).map((row, i) => {
+        playerRowCache[row.id] = { ...row };
+        return `
         <li class="lb-row${row.id === user?.id ? ' me' : ''}">
           <span class="lb-rank">#${i + 1}</span>
-          <span class="lb-name">${row.name}</span>
+          <button type="button" class="lb-player-btn" data-player-id="${row.id}">
+            <strong>${row.name}</strong>
+            <small>${row.totalStars || 0}⭐ · Lv ${row.maxLevel || 1}</small>
+          </button>
           <span class="lb-score">${row.score}</span>
         </li>
-      `).join('') || '<li class="lb-guest">No ranks yet — be the first!</li>';
+      `;
+      }).join('') || '<li class="lb-guest">No ranks yet — be the first!</li>';
+      list.querySelectorAll('.lb-player-btn').forEach((btn) => {
+        btn.addEventListener('click', () => viewPlayerDetail(btn.dataset.playerId));
+      });
     } catch {
       list.innerHTML = '<li class="lb-guest">Could not load leaderboard.</li>';
     }
@@ -611,16 +678,20 @@ const Game = (() => {
     if (detail) detail.classList.add('hidden');
     try {
       const data = await SocialManager.fetchClubLeaderboard();
-      list.innerHTML = (data.rows || []).map((row, i) => `
+      list.innerHTML = (data.rows || []).map((row, i) => {
+        clubRowCache[row.id] = row;
+        return `
         <li class="lb-row club-lb-row">
           <span class="lb-rank">#${i + 1}</span>
           <button type="button" class="club-lb-name" data-club-id="${row.id}">
+            <span class="club-lb-emoji">${row.emoji || '🏆'}</span>
             <strong>${row.name}</strong>
             <small>${row.memberCount} players · ${row.teamStars}⭐</small>
           </button>
           <span class="lb-score">${row.teamStars}</span>
         </li>
-      `).join('') || '<li class="lb-guest">No clubs yet — create one in My Club!</li>';
+      `;
+      }).join('') || '<li class="lb-guest">No clubs yet — create one in My Club!</li>';
       list.querySelectorAll('.club-lb-name').forEach((btn) => {
         btn.addEventListener('click', () => viewClubDetail(btn.dataset.clubId));
       });
@@ -629,30 +700,56 @@ const Game = (() => {
     }
   }
 
+  function renderClubDetailCard(club) {
+    const detail = $('club-view-detail');
+    if (!detail || !club) return;
+    const members = club.members || [];
+    const memberCount = club.memberCount ?? members.length;
+    const teamStars = club.teamStars ?? members.reduce((s, m) => s + (m.stars || 0), 0);
+    detail.classList.remove('hidden');
+    detail.innerHTML = `
+      <section class="club-card">
+        <button type="button" class="btn-secondary club-detail-close">Close</button>
+        <div class="club-detail-head">
+          <span class="club-detail-emoji">${club.emoji || '🏆'}</span>
+          <div>
+            <h3>${club.name}</h3>
+            ${club.description ? `<p class="club-motto">${club.description}</p>` : ''}
+            <p><strong>${teamStars}</strong> team stars · <strong>${memberCount}</strong> players</p>
+          </div>
+        </div>
+        <ul class="club-members">
+          ${members.map(m => `
+            <li>
+              <button type="button" class="club-member-link" data-player-id="${m.id}">
+                <span>${m.name}</span> <em>${m.role}</em> <span class="member-stars">${m.stars || 0}⭐</span>
+              </button>
+            </li>
+          `).join('') || '<li>No members listed</li>'}
+        </ul>
+      </section>
+    `;
+    detail.querySelector('.club-detail-close')?.addEventListener('click', () => {
+      detail.classList.add('hidden');
+    });
+    detail.querySelectorAll('.club-member-link').forEach((btn) => {
+      btn.addEventListener('click', () => viewPlayerDetail(btn.dataset.playerId));
+    });
+  }
+
   async function viewClubDetail(clubId) {
     const detail = $('club-view-detail');
     if (!detail || !clubId) return;
     detail.classList.remove('hidden');
     detail.innerHTML = '<p class="club-loading">Loading club…</p>';
+    const cached = clubRowCache[clubId];
+    if (cached?.members?.length) renderClubDetailCard(cached);
     try {
       const data = await SocialManager.viewClub(clubId);
-      const club = data.club;
-      detail.innerHTML = `
-        <section class="club-card">
-          <button type="button" class="btn-secondary club-detail-close">Close</button>
-          <h3>${club.name}</h3>
-          <p><strong>${club.teamStars}</strong> team stars · <strong>${club.memberCount}</strong> players</p>
-          <ul class="club-members">
-            ${club.members.map(m => `
-              <li><span>${m.name}</span> <em>${m.role}</em> <span class="member-stars">${m.stars}⭐</span></li>
-            `).join('')}
-          </ul>
-        </section>
-      `;
-      detail.querySelector('.club-detail-close')?.addEventListener('click', () => {
-        detail.classList.add('hidden');
-      });
+      clubRowCache[clubId] = { ...clubRowCache[clubId], ...data.club };
+      renderClubDetailCard(data.club);
     } catch (err) {
+      if (cached?.members?.length) return;
       detail.innerHTML = `<p class="club-guest">${err.message || 'Could not load club'}</p>`;
     }
   }
@@ -697,7 +794,11 @@ const Game = (() => {
     panel.innerHTML = '<p class="club-loading">Loading club…</p>';
     try {
       const data = await SocialManager.getClub();
-      const club = data.club;
+      let club = data.club;
+      if (!club) {
+        const cached = SocialManager.getCachedMyClub?.();
+        if (cached) club = cached;
+      }
       const pendingInvites = data.pendingInvites || [];
       if (!club) {
         panel.innerHTML = `
@@ -836,11 +937,11 @@ const Game = (() => {
           <ul class="club-members club-roster">
             ${club.members.map(m => `
               <li>
-                <span class="member-avatar" aria-hidden="true">${(m.name || '?').charAt(0).toUpperCase()}</span>
-                <span class="member-info">
+                <button type="button" class="member-avatar member-profile-btn" data-player-id="${m.id}" aria-label="View ${m.name}">${(m.name || '?').charAt(0).toUpperCase()}</button>
+                <button type="button" class="member-info member-profile-btn" data-player-id="${m.id}">
                   <strong>${m.name}</strong>
                   <small>${m.role}${m.joinedAt ? ` · joined ${formatClubDate(m.joinedAt)}` : ''} · ${m.stars || 0}⭐</small>
-                </span>
+                </button>
                 <span class="member-actions">
                   ${m.id !== user?.id ? `<button type="button" class="club-send-heart" data-id="${m.id}">❤️</button>` : ''}
                   ${isAdmin && m.role !== 'admin' ? `
@@ -899,9 +1000,11 @@ const Game = (() => {
       const name = $('club-name-input')?.value?.trim();
       if (!name) return showToast('Enter a club name');
       try {
-        await SocialManager.createClub(name);
+        const result = await SocialManager.createClub(name);
         showToast('Club created! Set up your profile below.');
         ranksTab = 'myclub';
+        showRanksTab('myclub');
+        if (result?.club) SocialManager.cacheMyClub?.(result.club);
         renderClub();
       } catch (e) { showToast(e.message); }
     });
@@ -921,8 +1024,13 @@ const Game = (() => {
       try {
         const data = await SocialManager.searchPlayers(q);
         box.innerHTML = (data.players || []).map(p =>
-          `<div class="search-row">${p.name} <small>${p.id}</small></div>`
+          `<button type="button" class="search-row search-player-btn" data-player-id="${p.id}">
+            <strong>${p.name}</strong> <small>${p.id}</small>
+          </button>`
         ).join('') || '<p>No players found</p>';
+        box.querySelectorAll('.search-player-btn').forEach((btn) => {
+          btn.addEventListener('click', () => viewPlayerDetail(btn.dataset.playerId));
+        });
       } catch (e) { showToast(e.message); }
     });
   }
@@ -1048,6 +1156,10 @@ const Game = (() => {
           renderClub();
         } catch (err) { showToast(err.message); }
       });
+    });
+
+    $('club-panel')?.querySelectorAll('.member-profile-btn').forEach((btn) => {
+      btn.addEventListener('click', () => viewPlayerDetail(btn.dataset.playerId));
     });
 
     $('club-invite-btn')?.addEventListener('click', async () => {
@@ -2254,7 +2366,7 @@ const Game = (() => {
     }
 
     bindUI();
-    try { injectHubIcons(); } catch (err) { console.warn('Hub icons failed:', err); }
+
     try { initStarBarSlots(); } catch (err) { console.warn('Star bar init failed:', err); }
 
     try {

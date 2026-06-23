@@ -13,16 +13,21 @@ const KEYS = {
 let kvClient = null;
 let kvChecked = false;
 
+function kvCredentials() {
+  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  return { url, token };
+}
+
 async function getKv() {
   if (kvChecked) return kvClient;
   kvChecked = true;
-  if (!process.env.KV_REST_API_URL || !process.env.KV_REST_API_TOKEN) return null;
+  const creds = kvCredentials();
+  if (!creds) return null;
   try {
     const { createClient } = await import('@upstash/redis');
-    kvClient = createClient({
-      url: process.env.KV_REST_API_URL,
-      token: process.env.KV_REST_API_TOKEN
-    });
+    kvClient = createClient(creds);
     return kvClient;
   } catch {
     return null;

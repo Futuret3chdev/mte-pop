@@ -102,7 +102,8 @@ export default async function handler(req, res) {
             name: p.name,
             score: scoreOf(p),
             totalStars: p.totalStars || 0,
-            maxLevel: p.maxLevel || 1
+            maxLevel: p.maxLevel || 1,
+            uniqueCards: p.uniqueCards || 0
           }))
           .sort((a, b) => b.score - a.score)
           .slice(0, 50);
@@ -125,21 +126,62 @@ export default async function handler(req, res) {
         const clubs = await getClubs();
         const rows = Object.values(clubs)
           .map((c) => {
-            const teamStars = (c.members || []).reduce(
-              (sum, m) => sum + (players[m.id]?.totalStars || 0),
-              0
-            );
+            const members = (c.members || []).map(m => ({
+              id: m.id,
+              name: m.name,
+              role: m.role,
+              stars: players[m.id]?.totalStars || 0
+            }));
+            const teamStars = members.reduce((sum, m) => sum + (m.stars || 0), 0);
             return {
               id: c.id,
               name: c.name,
-              memberCount: c.members?.length || 0,
+              emoji: c.emoji || '🏆',
+              description: c.description || '',
+              joinMode: c.joinMode || 'open',
+              memberCount: members.length,
               teamStars,
-              adminName: c.members?.find(m => m.id === c.adminId)?.name || 'Unknown'
+              adminId: c.adminId,
+              adminName: members.find(m => m.id === c.adminId)?.name || 'Unknown',
+              members,
+              questProgress: c.questProgress || { pops: 0, wins: 0, stars: 0 }
             };
           })
           .sort((a, b) => b.teamStars - a.teamStars || b.memberCount - a.memberCount)
           .slice(0, 20);
-        return res.status(200).json({ rows });
+        return res.status(200).json({ rows, teamQuests: TEAM_QUESTS });
+      }
+
+      case 'player_view': {
+        const playerId = String(req.query?.playerId || body.playerId || '').trim();
+        if (!playerId) return res.status(400).json({ error: 'playerId required' });
+        const players = await getPlayers();
+        const clubs = await getClubs();
+        const player = players[playerId];
+        if (!player) return res.status(404).json({ error: 'Player not found' });
+        const clubRaw = player.clubId ? clubs[player.clubId] : null;
+        const club = clubRaw ? {
+          id: clubRaw.id,
+          name: clubRaw.name,
+          emoji: clubRaw.emoji || '🏆',
+          memberCount: clubRaw.members?.length || 0,
+          teamStars: (clubRaw.members || []).reduce(
+            (sum, m) => sum + (players[m.id]?.totalStars || 0),
+            0
+          ),
+          role: clubRaw.members?.find(m => m.id === playerId)?.role || 'member'
+        } : null;
+        return res.status(200).json({
+          player: {
+            id: player.id,
+            name: player.name,
+            score: scoreOf(player),
+            totalStars: player.totalStars || 0,
+            maxLevel: player.maxLevel || 1,
+            uniqueCards: player.uniqueCards || 0
+          },
+          club
+        });
       }
 
       case 'club_view': {

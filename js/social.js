@@ -1,4 +1,6 @@
 const SocialManager = (() => {
+  const CLUB_CACHE_PREFIX = 'mtepop:myclub:';
+
   async function api(action, payload = {}, method = 'POST') {
     const url = method === 'GET'
       ? `/api/social?action=${encodeURIComponent(action)}&${new URLSearchParams(payload)}`
@@ -23,6 +25,33 @@ const SocialManager = (() => {
       name: profile.name || user.name,
       provider: user.provider
     };
+  }
+
+  function cacheMyClub(club) {
+    const user = userPayload();
+    if (!user?.id || !club) return;
+    try {
+      localStorage.setItem(`${CLUB_CACHE_PREFIX}${user.id}`, JSON.stringify({ club, at: Date.now() }));
+    } catch { /* quota */ }
+  }
+
+  function getCachedMyClub() {
+    const user = userPayload();
+    if (!user?.id) return null;
+    try {
+      const raw = localStorage.getItem(`${CLUB_CACHE_PREFIX}${user.id}`);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return parsed?.club || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function clearMyClubCache() {
+    const user = userPayload();
+    if (!user?.id) return;
+    try { localStorage.removeItem(`${CLUB_CACHE_PREFIX}${user.id}`); } catch { /* */ }
   }
 
   async function syncProfile(progress) {
@@ -50,6 +79,10 @@ const SocialManager = (() => {
     return api('club_view', { clubId }, 'GET');
   }
 
+  async function viewPlayer(playerId) {
+    return api('player_view', { playerId }, 'GET');
+  }
+
   async function claimCardGifts() {
     const user = userPayload();
     if (!user) return { claimed: [] };
@@ -63,25 +96,40 @@ const SocialManager = (() => {
   async function getClub() {
     const user = userPayload();
     if (!user) return null;
-    return api('club_get', user, 'GET');
+    const data = await api('club_get', user, 'GET');
+    if (data.club) {
+      cacheMyClub(data.club);
+      return data;
+    }
+    const cached = getCachedMyClub();
+    if (cached) {
+      return { ...data, club: cached, fromCache: true };
+    }
+    return data;
   }
 
   async function createClub(name) {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
-    return api('club_create', { ...user, clubName: name });
+    const result = await api('club_create', { ...user, clubName: name });
+    if (result.club) cacheMyClub(result.club);
+    return result;
   }
 
   async function joinClub(clubId) {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
-    return api('club_join', { ...user, clubId });
+    const result = await api('club_join', { ...user, clubId });
+    if (result.club) cacheMyClub(result.club);
+    return result;
   }
 
   async function acceptInvite(clubId) {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
-    return api('club_accept_invite', { ...user, clubId });
+    const result = await api('club_accept_invite', { ...user, clubId });
+    if (result.club) cacheMyClub(result.club);
+    return result;
   }
 
   async function invitePlayer(targetId) {
@@ -93,13 +141,17 @@ const SocialManager = (() => {
   async function updateClub(fields) {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
-    return api('club_update', { ...user, ...fields });
+    const result = await api('club_update', { ...user, ...fields });
+    if (result.club) cacheMyClub(result.club);
+    return result;
   }
 
   async function approveJoin(targetId) {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
-    return api('club_approve_join', { ...user, targetId });
+    const result = await api('club_approve_join', { ...user, targetId });
+    if (result.club) cacheMyClub(result.club);
+    return result;
   }
 
   async function denyJoin(targetId) {
@@ -111,7 +163,9 @@ const SocialManager = (() => {
   async function kickMember(targetId) {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
-    return api('club_kick', { ...user, targetId });
+    const result = await api('club_kick', { ...user, targetId });
+    if (result.club) cacheMyClub(result.club);
+    return result;
   }
 
   async function revokeInvite(targetId) {
@@ -123,13 +177,17 @@ const SocialManager = (() => {
   async function leaveClub() {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
-    return api('club_leave', user);
+    const result = await api('club_leave', user);
+    clearMyClubCache();
+    return result;
   }
 
   async function promoteMember(targetId, role) {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
-    return api('club_promote', { ...user, targetId, role });
+    const result = await api('club_promote', { ...user, targetId, role });
+    if (result.club) cacheMyClub(result.club);
+    return result;
   }
 
   async function contributeQuest(stat, amount) {
@@ -203,6 +261,7 @@ const SocialManager = (() => {
     fetchLeaderboard,
     fetchClubLeaderboard,
     viewClub,
+    viewPlayer,
     claimCardGifts,
     searchPlayers,
     getClub,
@@ -227,6 +286,8 @@ const SocialManager = (() => {
     requestClubHeart,
     fulfillClubHeart,
     isCodeCard,
-    isTradeableCard
+    isTradeableCard,
+    cacheMyClub,
+    getCachedMyClub
   };
 })();
