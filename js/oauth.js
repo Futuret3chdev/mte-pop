@@ -2,7 +2,7 @@ const OAuthHelper = (() => {
   const CHARSET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
 
   function redirectUri() {
-    const appUrl = (MTEPOP_CONFIG.appUrl || 'https://toon-blast.vercel.app').replace(/\/$/, '');
+    const appUrl = (MTEPOP_CONFIG.appUrl || 'https://mte-pop.vercel.app').replace(/\/$/, '');
     const origin = window.location.origin;
     const isLocal = origin && (origin.includes('localhost') || origin.includes('127.0.0.1'));
     if (isLocal) return `${origin}/auth/callback`;

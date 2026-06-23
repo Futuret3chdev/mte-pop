@@ -208,7 +208,7 @@ const Game = (() => {
     if (isUsableOrigin) {
       return origin + (window.location.pathname || '/');
     }
-    return MTEPOP_CONFIG.appUrl || 'https://toon-blast.vercel.app';
+    return MTEPOP_CONFIG.appUrl || 'https://mte-pop.vercel.app';
   }
 
   function updateInviteSection() {
