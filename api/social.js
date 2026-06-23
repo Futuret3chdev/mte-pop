@@ -56,6 +56,45 @@ function clearOrphanClubId(players, clubs, userId) {
   return true;
 }
 
+function scrubStaleMemberships(players, clubs, userId) {
+  const uid = String(userId);
+  const player = players[userId];
+  if (!player) return { playersDirty: false, clubsDirty: false };
+
+  let playersDirty = false;
+  let clubsDirty = false;
+  let canonical = null;
+
+  if (player.clubId && clubs[player.clubId]) {
+    const c = clubs[player.clubId];
+    if ((c.members || []).some(m => String(m.id) === uid)) canonical = c;
+  }
+  if (!canonical) {
+    canonical = Object.values(clubs).find(c =>
+      (c.members || []).some(m => String(m.id) === uid)
+    ) || null;
+    if (canonical && repairPlayerClubId(players, userId, canonical)) playersDirty = true;
+  }
+
+  for (const c of Object.values(clubs)) {
+    if (canonical && String(c.id) === String(canonical.id)) continue;
+    const before = (c.members || []).length;
+    c.members = (c.members || []).filter(m => String(m.id) !== uid);
+    if (c.members.length !== before) clubsDirty = true;
+  }
+
+  if (player.clubId && !clubs[player.clubId]) {
+    players[userId] = {
+      ...player,
+      clubId: canonical?.id || null,
+      updatedAt: now()
+    };
+    playersDirty = true;
+  }
+
+  return { playersDirty, clubsDirty, canonical };
+}
+
 function ensureAdminMembership(club, user) {
   if (!club || !user?.id) return false;
   if (String(club.adminId) !== String(user.id)) return false;
@@ -98,7 +137,7 @@ function normalizeClub(club, players) {
     if (adm) club.adminId = adm.id;
   }
   const members = (club.members || [])
-    .filter(m => players[m.id])
+    .filter(m => players[m.id] || String(m.id) === String(club.adminId))
     .map(m => ({
       ...m,
       name: players[m.id]?.name || m.name,
@@ -323,27 +362,34 @@ export default async function handler(req, res) {
         const clubs = await getClubs();
         const club = clubs[clubId];
         if (!club) return res.status(404).json({ error: 'Club not found' });
-        const teamStars = (club.members || []).reduce(
-          (sum, m) => sum + (players[m.id]?.totalStars || 0),
-          0
-        );
+        pruneGhostMembers(club, players);
+        const normalized = normalizeClub(club, players);
+        const teamStars = (normalized.members || []).reduce((sum, m) => sum + (m.stars || 0), 0);
         return res.status(200).json({
-          club: {
-            id: club.id,
-            name: club.name,
-            adminId: club.adminId,
-            memberCount: club.members?.length || 0,
-            teamStars,
-            members: (club.members || []).map(m => ({
-              id: m.id,
-              name: m.name,
-              role: m.role,
-              stars: players[m.id]?.totalStars || 0
-            })),
-            questProgress: club.questProgress || { pops: 0, wins: 0, stars: 0 }
-          },
+          club: { ...normalized, teamStars },
           teamQuests: TEAM_QUESTS
         });
+      }
+
+      case 'club_reset': {
+        if (req.method !== 'POST') return res.status(405).json({ error: 'POST required' });
+        const user = sanitizeUser(body);
+        if (!user) return res.status(400).json({ error: 'Invalid user' });
+        const players = await getPlayers();
+        const clubs = await getClubs();
+        const uid = String(user.id);
+        let clubsDirty = false;
+        for (const c of Object.values(clubs)) {
+          const before = (c.members || []).length;
+          c.members = (c.members || []).filter(m => String(m.id) !== uid);
+          c.invites = (c.invites || []).filter(i => String(i.id) !== uid);
+          c.joinRequests = (c.joinRequests || []).filter(r => String(r.id) !== uid);
+          if (c.members.length !== before) clubsDirty = true;
+        }
+        players[user.id] = { ...(players[user.id] || {}), ...user, clubId: null, updatedAt: now() };
+        if (clubsDirty) await saveClubs(clubs);
+        await savePlayers(players);
+        return res.status(200).json({ ok: true, cleared: true });
       }
 
       case 'club_get': {
@@ -356,18 +402,21 @@ export default async function handler(req, res) {
         const players = await getPlayers();
         const clubs = await getClubs();
         const player = players[user.id];
-        let rawClub = resolveUserClub(players, clubs, user.id);
-        let playersDirty = false;
+        const scrub = scrubStaleMemberships(players, clubs, user.id);
+        let rawClub = scrub.canonical || resolveUserClub(players, clubs, user.id);
+        let playersDirty = scrub.playersDirty;
+        let clubsDirty = scrub.clubsDirty;
         if (rawClub) {
           playersDirty = repairPlayerClubId(players, user.id, rawClub) || playersDirty;
           ensureAdminMembership(rawClub, user);
-          if (pruneGhostMembers(rawClub, players)) await saveClubs(clubs);
+          if (pruneGhostMembers(rawClub, players)) clubsDirty = true;
         } else {
           playersDirty = clearOrphanClubId(players, clubs, user.id) || playersDirty;
         }
+        if (clubsDirty) await saveClubs(clubs);
         if (playersDirty) await savePlayers(players);
         const club = rawClub ? normalizeClub(rawClub, players) : null;
-        if (club && club.members.length === 0 && String(rawClub.adminId) !== String(user.id)) {
+        if (club && club.members.length === 0 && !isClubAdmin(rawClub, user.id)) {
           clearOrphanClubId(players, clubs, user.id);
           await savePlayers(players);
           return res.status(200).json({ club: null, teamQuests: TEAM_QUESTS, player: players[user.id] || null, pendingInvites: [] });
@@ -416,9 +465,15 @@ export default async function handler(req, res) {
 
         const players = await getPlayers();
         const clubs = await getClubs();
-        clearOrphanClubId(players, clubs, user.id);
-        const existingClub = resolveUserClub(players, clubs, user.id);
-        if (existingClub) return res.status(400).json({ error: 'Already in a club — delete it first or leave' });
+        const scrub = scrubStaleMemberships(players, clubs, user.id);
+        if (scrub.clubsDirty) await saveClubs(clubs);
+        if (scrub.playersDirty) await savePlayers(players);
+        if (scrub.canonical) {
+          return res.status(400).json({
+            error: `Already in ${scrub.canonical.name}`,
+            club: normalizeClub(scrub.canonical, players)
+          });
+        }
 
         const id = clubId();
         clubs[id] = {
@@ -438,7 +493,11 @@ export default async function handler(req, res) {
         players[user.id] = { ...(players[user.id] || {}), ...user, clubId: id, updatedAt: now() };
         await saveClubs(clubs);
         await savePlayers(players);
-        return res.status(200).json({ ok: true, club: clubs[id] });
+        return res.status(200).json({
+          ok: true,
+          club: normalizeClub(clubs[id], players),
+          teamQuests: TEAM_QUESTS
+        });
       }
 
       case 'club_join': {
@@ -468,8 +527,23 @@ export default async function handler(req, res) {
 
         const club = clubs[joinId];
         if (!club) return res.status(404).json({ error: 'Club not found' });
-        clearOrphanClubId(players, clubs, user.id);
-        if (resolveUserClub(players, clubs, user.id)) return res.status(400).json({ error: 'Already in a club' });
+        const scrub = scrubStaleMemberships(players, clubs, user.id);
+        if (scrub.clubsDirty) await saveClubs(clubs);
+        if (scrub.playersDirty) await savePlayers(players);
+        if (scrub.canonical) {
+          if (String(scrub.canonical.id) === String(joinId)) {
+            return res.status(200).json({
+              ok: true,
+              alreadyMember: true,
+              club: normalizeClub(scrub.canonical, players),
+              teamQuests: TEAM_QUESTS
+            });
+          }
+          return res.status(400).json({
+            error: `Already in ${scrub.canonical.name}`,
+            club: normalizeClub(scrub.canonical, players)
+          });
+        }
         if (club.members.length >= 30) return res.status(400).json({ error: 'Club is full' });
 
         const joinMode = club.joinMode || 'open';
@@ -490,7 +564,11 @@ export default async function handler(req, res) {
         players[user.id] = { ...(players[user.id] || {}), ...user, clubId: joinId, updatedAt: now() };
         await saveClubs(clubs);
         await savePlayers(players);
-        return res.status(200).json({ ok: true, club });
+        return res.status(200).json({
+          ok: true,
+          club: normalizeClub(club, players),
+          teamQuests: TEAM_QUESTS
+        });
       }
 
       case 'club_update': {

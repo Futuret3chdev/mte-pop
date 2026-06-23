@@ -580,7 +580,28 @@ const Game = (() => {
       el.classList.toggle('active', el.dataset.ranksTab === tab);
     });
     if (tab === 'clubs') renderClubLeaderboard();
-    if (tab === 'myclub') renderClub();
+    if (tab === 'myclub') {
+      lastClubRenderSig = '';
+      renderClub();
+    }
+  }
+
+  function handleClubConflict(err, fallbackMsg) {
+    if (err?.data?.club) {
+      lastClubRenderSig = '';
+      SocialManager.cacheMyClub(err.data.club);
+      showToast(err.message || fallbackMsg);
+      showRanksTab('myclub');
+      renderClub({
+        prefill: {
+          club: err.data.club,
+          teamQuests: err.data.teamQuests || [],
+          pendingInvites: []
+        }
+      });
+      return true;
+    }
+    return false;
   }
 
   function renderPlayerDetailCard(player, club) {
@@ -812,9 +833,17 @@ const Game = (() => {
       panel.innerHTML = '<p class="club-guest">Sign in to join or create a club.</p>';
       return;
     }
-    if (!silent) panel.innerHTML = '<p class="club-loading">Loading club…</p>';
+    if (!silent && !opts.prefill) panel.innerHTML = '<p class="club-loading">Loading club…</p>';
     try {
-      const data = await SocialManager.getClub();
+      let data;
+      if (opts.prefill) {
+        data = opts.prefill;
+        if (data.club) SocialManager.cacheMyClub(data.club);
+        lastClubRenderSig = '';
+      } else {
+        await syncSocial({ background: true });
+        data = await SocialManager.getClub();
+      }
       const club = data.club;
       const pendingInvites = data.pendingInvites || [];
       const sig = clubRenderSignature(club, pendingInvites);
@@ -859,6 +888,12 @@ const Game = (() => {
             <input id="club-search-input" class="field-input" type="text" placeholder="Search player username">
             <button id="club-search-btn" class="btn-secondary btn-block" type="button">Search Players</button>
             <div id="club-search-results" class="club-search-results"></div>
+          </section>
+          <section class="club-card">
+            <h3>Stuck?</h3>
+            <p class="card-sub">If you see "already in a club" but nothing shows, refresh or clear stale data.</p>
+            <button id="club-refresh-btn" class="btn-secondary btn-block" type="button">Refresh My Club</button>
+            <button id="club-reset-btn" class="btn-secondary btn-block" type="button">Clear Stuck Club Data</button>
           </section>
         `;
         bindClubCreateUI();
@@ -925,6 +960,7 @@ const Game = (() => {
           <button id="club-heart-request" class="btn-secondary btn-block" type="button">Request Heart from Club</button>
           ${!isAdmin ? `<button id="club-leave-btn" class="btn-secondary btn-block" type="button">Leave Club</button>` : ''}
           ${isAdmin ? `<button id="club-delete-btn" class="btn-danger btn-block" type="button">Delete Club</button>` : ''}
+          <button id="club-refresh-btn" class="btn-secondary btn-block" type="button">Refresh Club</button>
         </section>
 
         ${canManage && joinRequests.length ? `
@@ -1024,17 +1060,22 @@ const Game = (() => {
       const name = $('club-name-input')?.value?.trim();
       if (!name) return showToast('Enter a club name');
       try {
+        await syncSocial({ background: true });
         const result = await SocialManager.createClub(name);
-        showToast('Club created! Set up your profile below.');
+        showToast('Club created! Customize your team below.');
+        lastClubRenderSig = '';
         ranksTab = 'myclub';
         showRanksTab('myclub');
-        if (result?.club) SocialManager.cacheMyClub?.(result.club);
-        renderClub();
+        await renderClub({
+          prefill: {
+            club: result.club,
+            teamQuests: result.teamQuests || [],
+            pendingInvites: []
+          }
+        });
       } catch (e) {
-        if ((e.message || '').includes('Already in a club')) {
-          showToast('Stuck in old club — tap Delete Club below, then create again');
-        } else {
-          showToast(e.message);
+        if (!handleClubConflict(e, 'You are already in a club')) {
+          showToast(e.message || 'Could not create club');
         }
       }
     });
@@ -1046,13 +1087,42 @@ const Game = (() => {
       const query = $('club-join-input')?.value?.trim();
       if (!query) return showToast('Enter a team name to search');
       try {
-        await syncSocial();
+        await syncSocial({ background: true });
         const result = await SocialManager.joinClub(query);
-        showToast(result?.pending ? 'Join request sent to admin!' : 'Joined club!');
-        if (!result?.pending) {
-          showRanksTab('myclub');
-          renderClub();
+        if (result?.alreadyMember) {
+          showToast(`You're already in ${result.club?.name || 'this club'}!`);
+        } else {
+          showToast(result?.pending ? 'Join request sent to admin!' : 'Joined club!');
         }
+        if (!result?.pending) {
+          lastClubRenderSig = '';
+          showRanksTab('myclub');
+          renderClub({
+            prefill: result.club ? {
+              club: result.club,
+              teamQuests: result.teamQuests || [],
+              pendingInvites: []
+            } : undefined
+          });
+        }
+      } catch (e) {
+        if (!handleClubConflict(e, "You're already in a club")) {
+          showToast(e.message || 'Could not join club');
+        }
+      }
+    });
+    $('club-refresh-btn')?.addEventListener('click', async () => {
+      lastClubRenderSig = '';
+      await renderClub();
+      showToast('Club refreshed');
+    });
+    $('club-reset-btn')?.addEventListener('click', async () => {
+      if (!confirm('Clear your club membership on the server? Use if stuck on "already in a club".')) return;
+      try {
+        await SocialManager.resetClubMembership();
+        lastClubRenderSig = '';
+        showToast('Club data cleared — you can join or create again');
+        renderClub();
       } catch (e) { showToast(e.message); }
     });
     $('club-join-input')?.addEventListener('keydown', (e) => {
@@ -1114,6 +1184,12 @@ const Game = (() => {
         showToast('Club profile saved!');
         renderClub();
       } catch (err) { showToast(err.message); }
+    });
+
+    $('club-panel')?.querySelector('#club-refresh-btn')?.addEventListener('click', async () => {
+      lastClubRenderSig = '';
+      await renderClub();
+      showToast('Club refreshed');
     });
 
     $('club-delete-btn')?.addEventListener('click', async () => {
@@ -1483,12 +1559,19 @@ const Game = (() => {
         const clubName = btn.querySelector('strong')?.textContent || 'team';
         try {
           const result = await SocialManager.joinClub(btn.dataset.clubId, { clubId: btn.dataset.clubId });
-          showToast(result?.pending ? 'Join request sent to admin!' : `Joined ${clubName}!`);
-          if (!result?.pending) {
-            showRanksTab('myclub');
-            renderClub();
+          if (result?.alreadyMember) {
+            showToast(`You're already in ${clubName}!`);
+          } else {
+            showToast(result?.pending ? 'Join request sent to admin!' : `Joined ${clubName}!`);
           }
-        } catch (e) { showToast(e.message); }
+          if (!result?.pending) {
+            lastClubRenderSig = '';
+            showRanksTab('myclub');
+            renderClub({ prefill: result.club ? { club: result.club, teamQuests: [], pendingInvites: [] } : undefined });
+          }
+        } catch (e) {
+          if (!handleClubConflict(e, "You're already in a club")) showToast(e.message);
+        }
       });
     });
   }

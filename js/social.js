@@ -12,7 +12,12 @@ const SocialManager = (() => {
     if (method !== 'GET') opts.body = JSON.stringify({ action, ...payload });
     const res = await fetch(url, opts);
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+    if (!res.ok) {
+      const err = new Error(data.error || `Request failed (${res.status})`);
+      err.status = res.status;
+      err.data = data;
+      throw err;
+    }
     return data;
   }
 
@@ -121,9 +126,14 @@ const SocialManager = (() => {
   async function createClub(name) {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
-    const result = await api('club_create', { ...user, clubName: name });
-    if (result.club) cacheMyClub(result.club);
-    return result;
+    try {
+      const result = await api('club_create', { ...user, clubName: name });
+      if (result.club) cacheMyClub(result.club);
+      return result;
+    } catch (err) {
+      if (err.data?.club) cacheMyClub(err.data.club);
+      throw err;
+    }
   }
 
   async function joinClub(clubIdOrQuery, opts = {}) {
@@ -138,6 +148,12 @@ const SocialManager = (() => {
     }
     const result = await api('club_join', payload);
     if (result.club) cacheMyClub(result.club);
+    return result;
+  }
+
+  async function resetClubMembership() {
+    const result = await api('club_reset', withClubPayload());
+    clearMyClubCache();
     return result;
   }
 
@@ -276,6 +292,7 @@ const SocialManager = (() => {
     revokeInvite,
     leaveClub,
     deleteClub,
+    resetClubMembership,
     promoteMember,
     contributeQuest,
     sendHeart,
