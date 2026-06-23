@@ -40,7 +40,7 @@ export default function handler(req, res) {
     last_name: body.last_name || ''
   };
 
-  const appUrl = process.env.MTEPOP_APP_URL || 'https://mte-pop.vercel.app';
+  const appUrl = process.env.MTEPOP_APP_URL || 'https://toon-blast.vercel.app';
   const loginToken = mintLoginToken(user, secret);
   const loginUrl = `${appUrl.replace(/\/$/, '')}/?tg_auth=${encodeURIComponent(loginToken)}`;
 

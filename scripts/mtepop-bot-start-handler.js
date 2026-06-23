@@ -22,7 +22,7 @@ async function handleMtePopStart(ctx, startPayload) {
   }
 
   try {
-    const res = await fetch('https://mte-pop.vercel.app/api/telegram/complete', {
+    const res = await fetch('https://toon-blast.vercel.app/api/telegram/complete', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
