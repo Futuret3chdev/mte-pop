@@ -3051,7 +3051,7 @@ body {
 
 .btn-danger:active { transform: translateY(2px); box-shadow: 0 2px 0 #c0392b; }
 
-.club-sync-hint { opacity: 0.65; font-size: 0.72rem; }
+.club-roster-note { font-size: 0.72rem; opacity: 0.65; margin: 0.35rem 0 0.5rem; }
 
 #club-invite-results .club-invite-target {
   display: block;

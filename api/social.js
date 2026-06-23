@@ -84,19 +84,31 @@ function isClubAdmin(club, userId) {
   return !!club.members?.some(m => String(m.id) === String(userId) && m.role === 'admin');
 }
 
+function pruneGhostMembers(club, players) {
+  if (!club?.members) return false;
+  const before = club.members.length;
+  club.members = club.members.filter(m => players[m.id]);
+  return club.members.length !== before;
+}
+
 function normalizeClub(club, players) {
   if (!club) return null;
   if (!club.adminId) {
     const adm = club.members?.find(m => m.role === 'admin');
     if (adm) club.adminId = adm.id;
   }
+  const members = (club.members || [])
+    .filter(m => players[m.id])
+    .map(m => ({
+      ...m,
+      name: players[m.id]?.name || m.name,
+      stars: players[m.id]?.totalStars || 0
+    }));
   return {
     ...club,
     emoji: club.emoji || '🏆',
-    members: (club.members || []).map(m => ({
-      ...m,
-      stars: players[m.id]?.totalStars || 0
-    }))
+    members,
+    memberCount: members.length
   };
 }
 
@@ -244,12 +256,14 @@ export default async function handler(req, res) {
         const clubs = await getClubs();
         const rows = Object.values(clubs)
           .map((c) => {
-            const members = (c.members || []).map(m => ({
-              id: m.id,
-              name: m.name,
-              role: m.role,
-              stars: players[m.id]?.totalStars || 0
-            }));
+            const members = (c.members || [])
+              .filter(m => players[m.id])
+              .map(m => ({
+                id: m.id,
+                name: players[m.id]?.name || m.name,
+                role: m.role,
+                stars: players[m.id]?.totalStars || 0
+              }));
             const teamStars = members.reduce((sum, m) => sum + (m.stars || 0), 0);
             return {
               id: c.id,
@@ -347,11 +361,17 @@ export default async function handler(req, res) {
         if (rawClub) {
           playersDirty = repairPlayerClubId(players, user.id, rawClub) || playersDirty;
           ensureAdminMembership(rawClub, user);
+          if (pruneGhostMembers(rawClub, players)) await saveClubs(clubs);
         } else {
           playersDirty = clearOrphanClubId(players, clubs, user.id) || playersDirty;
         }
         if (playersDirty) await savePlayers(players);
         const club = rawClub ? normalizeClub(rawClub, players) : null;
+        if (club && club.members.length === 0 && String(rawClub.adminId) !== String(user.id)) {
+          clearOrphanClubId(players, clubs, user.id);
+          await savePlayers(players);
+          return res.status(200).json({ club: null, teamQuests: TEAM_QUESTS, player: players[user.id] || null, pendingInvites: [] });
+        }
         const pendingInvites = [];
         if (!club) {
           for (const c of Object.values(clubs)) {

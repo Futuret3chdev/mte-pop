@@ -57,12 +57,10 @@ const SocialManager = (() => {
   function withClubPayload(extra = {}) {
     const user = userPayload();
     if (!user) throw new Error('Sign in required');
+    if (extra.clubId) return { ...user, ...extra };
     const cached = getCachedMyClub();
-    return {
-      ...user,
-      ...extra,
-      ...(cached?.id && !extra.clubId ? { clubId: cached.id } : {})
-    };
+    if (cached?.id) return { ...user, ...extra, clubId: cached.id };
+    return { ...user, ...extra };
   }
 
   async function syncProfile(progress) {
@@ -116,10 +114,7 @@ const SocialManager = (() => {
       cacheMyClub(data.club);
       return data;
     }
-    const cached = getCachedMyClub();
-    if (cached) {
-      return { ...data, club: cached, fromCache: true };
-    }
+    clearMyClubCache();
     return data;
   }
 

@@ -57,6 +57,8 @@ const Game = (() => {
   let heartsTimer = null;
   let socialPollTimer = null;
   let lastPendingInviteKey = '';
+  let lastSocialSnapshot = '';
+  let lastClubRenderSig = '';
 
   function ensureProgress() {
     if (!progress) {
@@ -261,9 +263,9 @@ const Game = (() => {
       }
       if (name === 'menu') {
         MascotBrain.refresh();
-        syncSocial({ refresh: false });
+        syncSocial({ background: true });
       }
-      if (name === 'leaderboard' || name === 'menu') startSocialPoll();
+      if (name === 'leaderboard') startSocialPoll();
       else stopSocialPoll();
       ensureProgress();
       updateMenuStats();
@@ -746,14 +748,16 @@ const Game = (() => {
     if (!detail || !clubId) return;
     detail.classList.remove('hidden');
     detail.innerHTML = '<p class="club-loading">Loading club…</p>';
-    const cached = clubRowCache[clubId];
-    if (cached?.members?.length) renderClubDetailCard(cached);
     try {
       const data = await SocialManager.viewClub(clubId);
-      clubRowCache[clubId] = { ...clubRowCache[clubId], ...data.club };
+      clubRowCache[clubId] = data.club;
       renderClubDetailCard(data.club);
     } catch (err) {
-      if (cached?.members?.length) return;
+      const cached = clubRowCache[clubId];
+      if (cached?.members?.length) {
+        renderClubDetailCard(cached);
+        return;
+      }
       detail.innerHTML = `<p class="club-guest">${err.message || 'Could not load club'}</p>`;
     }
   }
@@ -788,22 +792,34 @@ const Game = (() => {
     showScreen('leaderboard');
   }
 
-  async function renderClub() {
+  function clubRenderSignature(club, pendingInvites) {
+    if (!club) return 'none';
+    return JSON.stringify({
+      id: club.id,
+      name: club.name,
+      emoji: club.emoji,
+      members: (club.members || []).map(m => m.id).sort().join(','),
+      invites: (club.invites || []).length,
+      requests: (club.joinRequests || []).length
+    });
+  }
+
+  async function renderClub(opts = {}) {
+    const silent = opts.silent === true;
     const panel = $('club-panel');
     if (!panel) return;
     if (!AuthManager.isLoggedIn()) {
       panel.innerHTML = '<p class="club-guest">Sign in to join or create a club.</p>';
       return;
     }
-    panel.innerHTML = '<p class="club-loading">Loading club…</p>';
+    if (!silent) panel.innerHTML = '<p class="club-loading">Loading club…</p>';
     try {
       const data = await SocialManager.getClub();
-      let club = data.club;
-      if (!club) {
-        const cached = SocialManager.getCachedMyClub?.();
-        if (cached) club = cached;
-      }
+      const club = data.club;
       const pendingInvites = data.pendingInvites || [];
+      const sig = clubRenderSignature(club, pendingInvites);
+      if (silent && sig === lastClubRenderSig && panel.querySelector('.club-card')) return;
+      lastClubRenderSig = sig;
       if (!club) {
         panel.innerHTML = `
           ${pendingInvites.length ? `
@@ -904,7 +920,8 @@ const Game = (() => {
               <p class="club-stats-line"><strong>${teamStars}</strong> team stars · <strong>${club.members.length}</strong>/30 players</p>
             </div>
           </div>
-          <p class="club-you">Playing as <strong>${profile?.name || user?.name}</strong>${data.fromCache ? ' <small class="club-sync-hint">(syncing…)</small>' : ''}</p>
+          <p class="club-you">Playing as <strong>${profile?.name || user?.name}</strong></p>
+          <p class="club-roster-note">Only signed-in players appear in the roster.</p>
           <button id="club-heart-request" class="btn-secondary btn-block" type="button">Request Heart from Club</button>
           ${!isAdmin ? `<button id="club-leave-btn" class="btn-secondary btn-block" type="button">Leave Club</button>` : ''}
           ${isAdmin ? `<button id="club-delete-btn" class="btn-danger btn-block" type="button">Delete Club</button>` : ''}
@@ -1362,13 +1379,10 @@ const Game = (() => {
   function startSocialPoll() {
     stopSocialPoll();
     if (!AuthManager.isLoggedIn()) return;
-    const intervalMs = $('leaderboard-screen')?.classList.contains('active') ? 5000 : 8000;
-    const tick = () => {
-      const onRanks = $('leaderboard-screen')?.classList.contains('active');
-      syncSocial({ refresh: onRanks }).catch(() => {});
-    };
-    tick();
-    socialPollTimer = setInterval(tick, intervalMs);
+    if (!$('leaderboard-screen')?.classList.contains('active')) return;
+    socialPollTimer = setInterval(() => {
+      syncSocial({ background: true }).catch(() => {});
+    }, 60000);
   }
 
   function stopSocialPoll() {
@@ -1408,12 +1422,22 @@ const Game = (() => {
       }
 
       const invites = syncData?.pendingInvites || [];
+      const snapshot = JSON.stringify({
+        clubId: syncData?.clubId || null,
+        inviteKey: invites.map(i => i.clubId).sort().join(',')
+      });
+      const socialChanged = snapshot !== lastSocialSnapshot;
+      lastSocialSnapshot = snapshot;
+
       if (invites.length) {
         const key = invites.map(i => i.clubId).sort().join(',');
         if (key !== lastPendingInviteKey) {
           lastPendingInviteKey = key;
           const first = invites[0];
           showToast(`${first.emoji || '🏆'} Club invite: ${first.clubName}`);
+          if ($('leaderboard-screen')?.classList.contains('active') && ranksTab === 'myclub') {
+            renderClub({ silent: true });
+          }
         }
       } else {
         lastPendingInviteKey = '';
@@ -1425,7 +1449,11 @@ const Game = (() => {
         updateMenuStats();
       }
 
-      if (opts.refresh) refreshSocialScreens();
+      if (opts.refresh && !opts.background) refreshSocialScreens();
+      else if (opts.background && socialChanged && ranksTab === 'myclub'
+        && $('leaderboard-screen')?.classList.contains('active')) {
+        renderClub({ silent: true });
+      }
       return syncData;
     } catch { /* offline */ }
     return null;
@@ -2248,8 +2276,8 @@ const Game = (() => {
       renderProfilePickers();
       updateAuthUI();
       if (AuthManager.isLoggedIn()) {
-        syncSocial({ refresh: true }).catch(() => {});
-        startSocialPoll();
+        syncSocial({ background: true }).catch(() => {});
+        if ($('leaderboard-screen')?.classList.contains('active')) startSocialPoll();
       } else {
         stopSocialPoll();
       }
@@ -2496,8 +2524,8 @@ const Game = (() => {
       } else {
         setTimeout(resizeBoard, 200);
         if (AuthManager.isLoggedIn()) {
-          syncSocial({ refresh: $('leaderboard-screen')?.classList.contains('active') }).catch(() => {});
-          startSocialPoll();
+          syncSocial({ background: true }).catch(() => {});
+          if ($('leaderboard-screen')?.classList.contains('active')) startSocialPoll();
         }
       }
     });
@@ -2547,8 +2575,7 @@ const Game = (() => {
     try { updateInviteSection(); } catch (err) { console.warn('Invite section failed:', err); }
     updateAuthUI();
     if (AuthManager.isLoggedIn()) {
-      syncSocial({ refresh: false }).catch(() => {});
-      startSocialPoll();
+      syncSocial({ background: true }).catch(() => {});
     }
     MascotBrain.init();
     showSettingsTab('sound');
