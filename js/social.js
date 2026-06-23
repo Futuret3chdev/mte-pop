@@ -7,6 +7,7 @@ const SocialManager = (() => {
       : '/api/social';
     const opts = {
       method,
+      cache: 'no-store',
       headers: { 'Content-Type': 'application/json' }
     };
     if (method !== 'GET') opts.body = JSON.stringify({ action, ...payload });

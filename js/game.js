@@ -59,6 +59,7 @@ const Game = (() => {
   let lastPendingInviteKey = '';
   let lastSocialSnapshot = '';
   let lastClubRenderSig = '';
+  let lastClubPanelData = null;
 
   function ensureProgress() {
     if (!progress) {
@@ -819,10 +820,31 @@ const Game = (() => {
       id: club.id,
       name: club.name,
       emoji: club.emoji,
+      description: club.description || '',
+      joinMode: club.joinMode || 'open',
       members: (club.members || []).map(m => m.id).sort().join(','),
       invites: (club.invites || []).length,
       requests: (club.joinRequests || []).length
     });
+  }
+
+  function clubToLeaderboardRow(club) {
+    const members = club.members || [];
+    return {
+      id: club.id,
+      name: club.name,
+      emoji: club.emoji || '🏆',
+      description: club.description || '',
+      joinMode: club.joinMode || 'open',
+      memberCount: club.memberCount ?? members.length,
+      teamStars: members.reduce((s, m) => s + (m.stars || 0), 0),
+      members
+    };
+  }
+
+  function syncClubRowCache(club) {
+    if (!club?.id) return;
+    clubRowCache[club.id] = clubToLeaderboardRow(club);
   }
 
   async function renderClub(opts = {}) {
@@ -846,6 +868,7 @@ const Game = (() => {
       }
       const club = data.club;
       const pendingInvites = data.pendingInvites || [];
+      lastClubPanelData = data;
       const sig = clubRenderSignature(club, pendingInvites);
       if (silent && sig === lastClubRenderSig && panel.querySelector('.club-card')) return;
       lastClubRenderSig = sig;
@@ -1167,22 +1190,25 @@ const Game = (() => {
 
     $('club-save-profile')?.addEventListener('click', async () => {
       try {
-        SocialManager.cacheMyClub?.({
-          ...club,
-          name: $('club-name-edit')?.value?.trim() || club.name,
-          description: $('club-desc-edit')?.value?.trim() || '',
-          joinMode: $('club-join-mode')?.value || club.joinMode,
-          emoji: selectedEmoji
-        });
-        await SocialManager.updateClub({
+        const result = await SocialManager.updateClub({
           clubId: club.id,
           clubName: $('club-name-edit')?.value?.trim(),
           description: $('club-desc-edit')?.value?.trim(),
           joinMode: $('club-join-mode')?.value,
           emoji: selectedEmoji
         });
+        if (!result.club) throw new Error('Club save failed');
+        lastClubRenderSig = '';
+        syncClubRowCache(result.club);
         showToast('Club profile saved!');
-        renderClub();
+        await renderClub({
+          prefill: {
+            club: result.club,
+            teamQuests: lastClubPanelData?.teamQuests || [],
+            pendingInvites: lastClubPanelData?.pendingInvites || []
+          }
+        });
+        renderClubLeaderboard();
       } catch (err) { showToast(err.message); }
     });
 

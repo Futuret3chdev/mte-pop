@@ -180,12 +180,14 @@ export default async function handler(req, res) {
         };
         const gifts = players[user.id]?.cardGifts || [];
         const clubId = players[user.id]?.clubId;
-        if (clubId) {
+        if (clubId && user.name) {
           const clubs = await getClubs();
           const club = clubs[clubId];
-          const member = club?.members?.find(m => m.id === user.id);
-          if (member && user.name) member.name = user.name;
-          if (club) await saveClubs(clubs);
+          const member = club?.members?.find(m => String(m.id) === String(user.id));
+          if (member) {
+            member.name = user.name;
+            await saveClubs(clubs);
+          }
         }
         const clubs = await getClubs();
         const pendingInvites = [];
@@ -599,9 +601,17 @@ export default async function handler(req, res) {
           const emoji = String(body.emoji || '').trim().slice(0, 8);
           if (emoji) club.emoji = emoji;
         }
-        await saveClubs(clubs);
+        const freshClubs = await getClubs();
+        const target = freshClubs[club.id];
+        if (!target) return res.status(404).json({ error: 'Club not found on server — delete stale club and recreate' });
+        if (body.clubName !== undefined) target.name = club.name;
+        if (body.description !== undefined) target.description = club.description;
+        if (body.joinMode !== undefined) target.joinMode = club.joinMode;
+        if (body.emoji !== undefined) target.emoji = club.emoji;
+        target.updatedAt = now();
+        await saveClubs(freshClubs);
         if (playersDirty) await savePlayers(players);
-        return res.status(200).json({ ok: true, club: normalizeClub(club, players) });
+        return res.status(200).json({ ok: true, club: normalizeClub(target, players) });
       }
 
       case 'club_delete': {
